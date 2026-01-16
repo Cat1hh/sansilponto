@@ -1,0 +1,405 @@
+:root {
+        /* Cores extraídas do logo Sansil */
+        --primary-red: #E30613; 
+        --dark-bg: #1a1a1a;
+        --light-bg: #f4f4f4;
+        --white: #ffffff;
+    }
+
+    body {
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        background-color: var(--dark-bg); /* Fundo preto como o logo */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+        color: var(--white);
+    }
+
+    .container {
+        background: var(--white);
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        width: 90%;
+        max-width: 400px;
+        color: #333; /* Texto interno escuro para leitura */
+    }
+
+    /* Estilo do Título com as cores da Sansil */
+    h2 {
+        color: var(--primary-red);
+        text-transform: uppercase;
+        font-weight: 900;
+        border-bottom: 3px solid var(--primary-red);
+        padding-bottom: 10px;
+        margin-bottom: 25px;
+    }
+
+    /* Botão Principal em Vermelho Sansil */
+    .btn-primary {
+        background-color: var(--primary-red);
+        color: var(--white);
+        border: none;
+        padding: 15px;
+        border-radius: 8px;
+        font-size: 18px;
+        font-weight: bold;
+        width: 100%;
+        cursor: pointer;
+        transition: transform 0.2s, background 0.3s;
+        text-transform: uppercase;
+    }
+
+    .btn-primary:hover {
+        background-color: #b3050f;
+        transform: scale(1.02);
+    }
+
+    /* Botão da Dona (Borda Vermelha) */
+    .btn-outline {
+        background: transparent;
+        color: var(--primary-red);
+        border: 2px solid var(--primary-red);
+        padding: 12px;
+        border-radius: 8px;
+        font-weight: bold;
+        width: 100%;
+        margin-top: 15px;
+        cursor: pointer;
+    }
+
+    select, input {
+        width: 100%;
+        padding: 12px;
+        margin: 10px 0;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        font-size: 16px;
+        box-sizing: border-box;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+
+    th {
+        background-color: var(--primary-red);
+        color: white;
+        padding: 10px;
+    }
+
+    td {
+        padding: 10px;
+        border-bottom: 1px solid #ddd;
+        text-align: center;
+    }
+    /* Layout Geral do Dashboard */
+.dashboard-container {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    background: #f8f9fa;
+    position: fixed;
+    top: 0; left: 0;
+}
+
+/* Sidebar Estilizada */
+.sidebar {
+    width: 250px;
+    background: #1a1a1a; /* Preto da Sansil */
+    color: white;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 0;
+}
+
+.sidebar-header img {
+    width: 120px;
+    display: block;
+    margin: 0 auto 30px;
+}
+
+.nav-links {
+    list-style: none;
+    padding: 0;
+    flex-grow: 1;
+}
+
+.nav-links li {
+    padding: 15px 25px;
+    cursor: pointer;
+    transition: 0.3s;
+    border-left: 4px solid transparent;
+}
+
+.nav-links li:hover, .nav-links li.active {
+    background: #333;
+    border-left-color: #E30613; /* Vermelho Sansil */
+}
+
+.nav-pdf { color: #25D366; font-weight: bold; }
+
+.btn-logout {
+    background: transparent;
+    color: #ff4444;
+    border: none;
+    padding: 20px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+/* Área de Conteúdo */
+.admin-content {
+    flex-grow: 1;
+    padding: 30px;
+    overflow-y: auto;
+    color: #333;
+}
+
+.admin-content header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.table-container {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.btn-refresh {
+    background: #E30613;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.grid-nomes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.card-funcionario-admin {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    border-left: 5px solid #E30613; /* Vermelho Sansil */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s;
+}
+
+.card-funcionario-admin:hover {
+    transform: translateY(-3px);
+    background: #fff5f5;
+}
+
+.card-funcionario-admin strong {
+    font-size: 1.1rem;
+    color: #333;
+}
+
+.card-funcionario-admin span {
+    font-size: 0.8rem;
+    color: #777;
+    margin-top: 5px;
+}
+.form-container {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    max-width: 500px;
+}
+
+.input-group {
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+}
+
+.input-group label {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.input-group input {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+.atraso-texto {
+    color: #e30613;
+    font-weight: bold;
+    background: #ffcccc;
+    padding: 2px 5px;
+    border-radius: 4px;
+}
+/* Centraliza o formulário de cadastro */
+.form-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Centraliza horizontalmente */
+    text-align: center;
+}
+
+.input-group {
+    width: 100%;
+    max-width: 300px;
+    margin: 10px 0;
+    text-align: left; /* Mantém o texto do label à esquerda dentro do grupo centralizado */
+}
+
+/* Alinha os checkboxes verticalmente e centraliza o grupo */
+.dias-check {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin-top: 10px;
+    padding-left: 40%; /* Ajuste para centralizar visualmente a lista */
+}
+
+.dias-check label {
+    margin-bottom: 5px;
+    cursor: pointer;
+}
+
+/* Centraliza as tabelas */
+.table-container table {
+    margin: 0 auto;
+    width: 90%;
+}
+/* 1. FORCE A LARGURA REAL NO MOBILE */
+.container {
+    width: 95% !important; /* Força o ajuste mesmo no servidor */
+    max-width: 400px;
+    margin: 10px auto;
+    padding: 20px;
+    box-sizing: border-box; /* Impede que o botão saia do limite (Erro: image_40abeb) */
+}
+
+/* 2. RESOLVE O CONFLITO DA SIDEBAR NO SERVIDOR (Erro: image_40b085) */
+@media (max-width: 768px) {
+    .dashboard-container {
+        flex-direction: column !important; /* Garante que o menu fique no topo */
+    }
+
+    .sidebar {
+        width: 100% !important;
+        height: auto !important;
+        position: relative !important;
+    }
+
+    /* Ajusta os nomes dos funcionários que somem no servidor */
+    .card-funcionario-admin {
+        width: 100% !important;
+        box-sizing: border-box;
+    }
+}
+
+/* 3. ALINHAMENTO DOS DIAS (Erro: image_40a44a) */
+.dias-check {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr; /* Força duas colunas alinhadas */
+    gap: 15px;
+    width: 100%;
+    max-width: 280px;
+    margin: 15px auto;
+    padding: 0 !important; /* Remove paddings que o servidor possa injetar */
+}
+
+.dias-check label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+/* 4. TABELA QUE NÃO ESTICA A TELA (Erro: image_40b714) */
+.table-container {
+    width: 100% !important;
+    overflow-x: auto !important; /* Cria o scroll lateral no celular */
+    margin-top: 20px;
+}
+/* Botões de Ação na Tabela */
+.btn-edit {
+    background-color: #ffc107; /* Amarelo para editar */
+    color: #000;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-right: 5px;
+    text-transform: uppercase;
+    font-size: 11px;
+}
+
+.btn-delete {
+    background-color: transparent;
+    color: var(--primary-red);
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 11px;
+}
+
+/* Garante que a coluna de ações tenha espaço para os dois botões */
+td:last-child {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    min-width: 150px;
+}
+.btn-acao-edit {
+    color: #ffc107;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+    margin-right: 10px;
+}
+
+.btn-acao-delete {
+    color: #e30613;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+}
+.grid-nomes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.card-funcionario-admin {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    border-left: 5px solid #e30613;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    cursor: pointer;
+    transition: transform 0.2s;
+    display: flex;
+    flex-direction: column;
+}
+
+.card-funcionario-admin:hover {
+    transform: translateY(-5px);
+    background: #fff5f5;
+}

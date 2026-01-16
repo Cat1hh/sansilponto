@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Sistema de Ponto - Sansil</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    
+    <style>
+        .hidden { display: none !important; }
+        .logo-container { text-align: center; margin-bottom: 20px; }
+        .btn-voltar { background: #eee; border: 1px solid #ccc; padding: 10px; width: 100%; margin-top: 20px; cursor: pointer; border-radius: 5px; }
+        
+        #alerta-limpeza {
+            background: #fff3cd; color: #856404; padding: 15px; border-radius: 5px;
+            margin-bottom: 20px; border: 1px solid #ffeeba; font-weight: bold; text-align: center;
+        }
+
+        .form-container {
+            display: flex; flex-direction: column; align-items: center; text-align: center;
+            background: #f9f9f9; padding: 20px; border-radius: 10px; margin-bottom: 30px;
+        }
+
+        .input-group { width: 100%; max-width: 300px; margin: 10px 0; text-align: left; }
+        
+        .dias-check {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+            margin-top: 10px; width: 100%;
+        }
+
+        .dias-check label { font-size: 14px; display: flex; align-items: center; gap: 5px; cursor: pointer; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { text-align: center !important; padding: 12px; border: 1px solid #ddd; }
+        th { background-color: #e30613; color: white; }
+
+        .btn-acao-edit { color: #ffc107; background: none; border: none; cursor: pointer; font-weight: bold; margin-right: 10px; text-transform: uppercase; }
+        .btn-acao-delete { color: #e30613; background: none; border: none; cursor: pointer; font-weight: bold; text-transform: uppercase; }
+        
+        .import-box {
+            background: #ffffff;
+            border: 2px dashed #e30613;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .video-ponto {
+            margin: 20px 0; 
+            border: 3px solid #e30613; 
+            border-radius: 15px; 
+            overflow: hidden; 
+            width: 320px; 
+            height: 240px; 
+            background: #000; 
+            position: relative; 
+            left: 50%; 
+            transform: translateX(-50%);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        /* Estilo para o aviso de carregamento */
+        #status-modelos {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="tela-perfil">
+        <div class="logo-container">
+            <img src="logosansil.png" alt="Sansil Padaria" style="width: 150px; margin-bottom: 10px;">
+        </div>
+        <div id="status-modelos">Carregando sistema de biometria...</div>
+        <button class="btn-primary" onclick="irPara('tela-ponto')">👤 REGISTRAR PONTO (FOTO)</button>
+        <button class="btn-outline" onclick="checarAdmin()">🔑 ÁREA DA DONA (RESTRITO)</button>
+    </div>
+
+    <div id="tela-ponto" class="hidden">
+        <h2>🥖 Registro de Ponto</h2>
+        <div class="input-group" style="margin: 0 auto;">
+            <label>Selecione seu nome:</label>
+            <select id="select-func" style="width: 100%; padding: 10px;"></select>
+        </div>
+        <div class="input-group" style="margin: 10px auto;">
+            <label>O que vai fazer agora?</label>
+            <select id="tipo-ponto" style="width: 100%; padding: 10px;">
+                <option value="Entrada (05:45)">Entrada (Início de Turno)</option>
+                <option value="Saída p/ Almoço">Saída p/ Almoço</option>
+                <option value="Retorno Almoço">Retorno Almoço</option>
+                <option value="Saída p/ Café">Saída p/ Café</option>
+                <option value="Retorno Café">Retorno Café</option>
+                <option value="Saída (Fim do Expediente)">Saída (Final do Dia)</option>
+            </select>
+        </div>
+        <div class="video-ponto">
+            <video id="video" width="320" height="240" autoplay style="object-fit: cover;"></video>
+            <canvas id="canvas" width="320" height="240" class="hidden"></canvas>
+        </div>
+        <button id="btn-bater-ponto" class="btn-primary" onclick="capturarEFitrar()" style="background-color: #28a745;">📸 BATER PONTO AGORA</button>
+        <button class="btn-voltar" onclick="irPara('tela-perfil')">← Voltar</button>
+    </div>
+
+    <div id="tela-admin" class="hidden dashboard-container">
+        <nav class="sidebar">
+            <div class="sidebar-header"><img src="logosansil.png" alt="Sansil" style="width: 80px;"></div>
+            <ul class="nav-links">
+                <li class="active" id="btn-aba-relatorio" onclick="mudarAbaAdmin('aba-relatorio')"><span>📊 Relatórios</span></li>
+                <li id="btn-aba-funcionarios" onclick="mudarAbaAdmin('aba-funcionarios')"><span>👥 Funcionários</span></li>
+                <li onclick="gerarPDF()" class="nav-pdf"><span>📄 Gerar PDF</span></li>
+            </ul>
+            <button class="btn-logout" onclick="irPara('tela-perfil')">Sair</button>
+        </nav>
+
+        <main class="admin-content">
+            <header>
+                <h2 id="titulo-aba">Relatório de Pontos</h2>
+                <button class="btn-refresh" onclick="carregarRelatorio()">🔄 Atualizar</button>
+            </header>
+
+            <section id="aba-relatorio" class="admin-section">
+                <div id="alerta-limpeza" class="hidden">⚠️ Os dados serão limpos em <span id="contagem-dias"></span> dias!</div>
+                
+                <div class="import-box">
+                    <h3>📥 Importar do Pendrive (Aparelho Biométrico)</h3>
+                    <p style="font-size: 12px; color: #666;">Selecione o arquivo extraído do aparelho (ex: AGL_001.TXT)</p>
+                    <input type="file" id="arquivoBios" accept=".TXT,.dat" style="margin: 10px 0;">
+                    <br>
+                    <button class="btn-primary" onclick="importarArquivo()" style="background: #333; width: auto; padding: 10px 20px;">PROCESSAR ARQUIVO</button>
+                </div>
+
+                <div id="container-lista-funcionarios">
+                    <div id="lista-nomes-resumo" class="grid-nomes"></div>
+                </div>
+                <div id="container-detalhes-ponto" class="hidden">
+                    <button class="btn-voltar" onclick="voltarParaLista()" style="width: auto; margin-bottom: 10px;">⬅ Voltar</button>
+                    <h3 id="nome-funcionario-selecionado"></h3>
+                    <div class="table-container">
+                        <table id="tabela-pontos-admin">
+                            <thead>
+                                <tr>
+                                    <th>Data</th><th>Dia</th><th>Entrada</th><th>Almoço</th><th>Retorno</th><th>Café</th><th>Retorno</th><th>Saída</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-corpo"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="aba-funcionarios" class="admin-section hidden">
+                <div class="form-container">
+                    <h3 id="form-titulo">➕ Novo Funcionário</h3>
+                    <div style="margin-bottom: 15px;">
+                        <video id="video-cadastro" width="200" height="150" autoplay style="border: 2px solid #ccc; border-radius: 10px; background: #000;"></video>
+                        <canvas id="canvas-cadastro" width="200" height="150" class="hidden"></canvas>
+                        <br>
+                        <button class="btn-primary" onclick="capturarFotoCadastro()" style="padding: 5px 10px; font-size: 12px; margin-top: 5px;">📸 Tirar Foto Oficial</button>
+                        <input type="hidden" id="foto-perfil-base64">
+                    </div>
+                    <input type="text" id="novo-nome" placeholder="Nome Completo" style="width: 100%; max-width: 300px; margin-bottom: 10px;">
+                    <div class="input-group">
+                        <label><strong>ID no Aparelho (Biometria):</strong></label>
+                        <input type="number" id="id-biometria" placeholder="Ex: 1, 6, 10" style="width: 95%; padding: 8px;">
+                    </div>
+                    <div class="input-group">
+                        <label><strong>Turno de Almoço:</strong></label>
+                        <select id="turno-almoco" style="width: 100%; padding: 8px;">
+                            <option value="11:00 às 12:00">11:00 às 12:00</option>
+                            <option value="12:00 às 13:00">12:00 às 13:00</option>
+                            <option value="Flexível">Flexível</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label><strong>Dias de Trabalho:</strong></label>
+                        <div class="dias-check">
+                            <label><input type="checkbox" class="dia-semana" value="Seg"> Seg</label>
+                            <label><input type="checkbox" class="dia-semana" value="Ter"> Ter</label>
+                            <label><input type="checkbox" class="dia-semana" value="Qua"> Qua</label>
+                            <label><input type="checkbox" class="dia-semana" value="Qui"> Qui</label>
+                            <label><input type="checkbox" class="dia-semana" value="Sex"> Sex</label>
+                            <label><input type="checkbox" class="dia-semana" value="Sab"> Sab</label>
+                            <label><input type="checkbox" class="dia-semana" value="Dom"> Dom</label>
+                        </div>
+                    </div>
+                    <button class="btn-primary" onclick="cadastrarFuncionario()" id="btn-salvar-func" style="max-width: 300px; margin-top: 15px;">SALVAR</button>
+                    <button class="btn-voltar hidden" id="btn-cancelar-edit" onclick="cancelarEdicao()">Cancelar Edição</button>
+                </div>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr><th>Nome</th><th>ID Bio</th><th>Almoço</th><th>Dias</th><th>Ações</th></tr>
+                        </thead>
+                        <tbody id="tabela-equipe-corpo"></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+</div>
+
+<script>
+let todosOsPontos = []; 
+let funcionarioSelecionado = ""; 
+let editandoModo = false;
+let idEdicao = null; 
+let streamPrincipal;
+let streamCadastro;
+let modelosCarregados = false;
+
+// 1. CARREGAR MODELOS AO ABRIR (FICA MUITO MAIS RÁPIDO)
+async function carregarModelos() {
+    try {
+        const MODEL_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
+        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+        modelosCarregados = true;
+        document.getElementById('status-modelos').innerText = "✅ Biometria Pronta";
+        document.getElementById('status-modelos').style.color = "green";
+    } catch (e) {
+        document.getElementById('status-modelos').innerText = "❌ Erro ao carregar biometria";
+    }
+}
+
+window.onload = () => { 
+    atualizarSelectPonto(); 
+    carregarModelos(); 
+};
+
+// --- NAVEGAÇÃO E CÂMERAS ---
+async function iniciarCamera() {
+    try {
+        streamPrincipal = await navigator.mediaDevices.getUserMedia({ video: true });
+        document.getElementById('video').srcObject = streamPrincipal;
+    } catch (err) { alert("Erro ao acessar a câmera."); }
+}
+
+async function iniciarCameraCadastro() {
+    try {
+        streamCadastro = await navigator.mediaDevices.getUserMedia({ video: true });
+        document.getElementById('video-cadastro').srcObject = streamCadastro;
+    } catch (err) { console.log("Câmera de cadastro negada."); }
+}
+
+function pararTodasCameras() {
+    if (streamPrincipal) streamPrincipal.getTracks().forEach(t => t.stop());
+    if (streamCadastro) streamCadastro.getTracks().forEach(t => t.stop());
+}
+
+function irPara(idTela) {
+    document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden'));
+    document.getElementById(idTela).classList.remove('hidden');
+    pararTodasCameras();
+    if (idTela === 'tela-ponto') iniciarCamera();
+}
+
+// --- REGISTRO DE PONTO (FOTO) OTIMIZADO ---
+async function capturarEFitrar() {
+    const nome = document.getElementById('select-func').value;
+    const tipo = document.getElementById('tipo-ponto').value;
+    const btn = document.getElementById('btn-bater-ponto');
+    
+    if (!nome) { alert("Selecione seu nome!"); return; }
+    if (!modelosCarregados) { alert("Aguarde o carregamento do sistema..."); return; }
+
+    btn.disabled = true;
+    btn.innerText = "VALIDANDO ROSTO...";
+
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const context = canvas.getContext('2d');
+    context.drawImage(video, 0, 0, 320, 240);
+    const fotoCapturadaBase64 = canvas.toDataURL('image/png');
+
+    try {
+        const resFunc = await fetch(`/admin/equipe`, { headers: { 'ngrok-skip-browser-warning': 'true' } });
+        const equipe = await resFunc.json();
+        const dadosFunc = equipe.find(f => f.nome === nome);
+
+        if (!dadosFunc || !dadosFunc.foto_perfil) {
+            alert("Erro: Funcionário sem foto oficial cadastrada.");
+            btn.disabled = false;
+            btn.innerText = "📸 BATER PONTO AGORA";
+            return;
+        }
+
+        // Validação Acelerada com TinyFace
+        const eIdentico = await validarIdentidadeAcelerada(video, dadosFunc.foto_perfil);
+
+        if (!eIdentico) {
+            alert("❌ NÃO RECONHECIDO! Tente se aproximar mais da luz e olhar para a câmera.");
+            btn.disabled = false;
+            btn.innerText = "📸 BATER PONTO AGORA";
+            return;
+        }
+
+        await fetch('/bater-ponto', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ funcionario: nome, tipo: tipo, foto: fotoCapturadaBase64 })
+        });
+        
+        alert("✅ IDENTIDADE CONFIRMADA! Ponto registrado.");
+        irPara('tela-perfil');
+
+    } catch (e) { 
+        console.error(e);
+        alert("Erro técnico na validação."); 
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "📸 BATER PONTO AGORA";
+    }
+}
+
+async function validarIdentidadeAcelerada(videoEl, fotoReferencia) {
+    // 1. Detecta na câmera (usando o modelo Tiny que é mais rápido)
+    const detecAtual = await faceapi.detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+    if (!detecAtual) return false;
+
+    // 2. Detecta na foto de referência
+    const imgRef = await faceapi.fetchImage(fotoReferencia);
+    const detecRef = await faceapi.detectSingleFace(imgRef, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+    if (!detecRef) return false;
+
+    // 3. Compara
+    const distancia = faceapi.euclideanDistance(detecAtual.descriptor, detecRef.descriptor);
+    return distancia < 0.60; // Limite de precisão (menor é mais rigoroso)
+}
+
+// --- ADMINISTRAÇÃO ---
+function checarAdmin() {
+    const senha = prompt("Senha administrativa:");
+    if (senha === "sansil2026") { 
+        irPara('tela-admin');
+        mudarAbaAdmin('aba-relatorio');
+    } else if (senha !== null) alert("Incorreta!");
+}
+
+function mudarAbaAdmin(abaId) {
+    document.querySelectorAll('.admin-section').forEach(s => s.classList.add('hidden'));
+    document.getElementById(abaId).classList.remove('hidden');
+    document.querySelectorAll('.nav-links li').forEach(li => li.classList.remove('active'));
+    
+    const btnAba = document.getElementById('btn-' + abaId);
+    if(btnAba) btnAba.classList.add('active');
+
+    pararTodasCameras();
+    if(abaId === 'aba-relatorio') carregarRelatorio();
+    else if (abaId === 'aba-funcionarios') {
+        iniciarCameraCadastro();
+        listarEquipe();
+    }
+}
+
+// --- RELATÓRIOS ---
+async function carregarRelatorio() {
+    try {
+        const res = await fetch('/admin/pontos', { headers: { 'ngrok-skip-browser-warning': 'true' } });
+        const data = await res.json();
+        todosOsPontos = data.pontos;
+        
+        const alerta = document.getElementById('alerta-limpeza');
+        if (data.diasRestantes <= 5) {
+            alerta.classList.remove('hidden');
+            document.getElementById('contagem-dias').innerText = data.diasRestantes;
+        } else alerta.classList.add('hidden');
+
+        renderizarListaFuncionarios();
+    } catch (e) { console.error(e); }
+}
+
+function renderizarListaFuncionarios() {
+    voltarParaLista(); 
+    const container = document.getElementById('lista-nomes-resumo');
+    container.innerHTML = "";
+    const nomesUnicos = [...new Set(todosOsPontos.map(p => p.funcionario))];
+    nomesUnicos.forEach(nome => {
+        const total = todosOsPontos.filter(p => p.funcionario === nome).length;
+        const card = document.createElement('div');
+        card.className = "card-funcionario-admin";
+        card.innerHTML = `<strong>${nome}</strong><span>${total} registros</span>`;
+        card.onclick = () => verDetalhesFuncionario(nome);
+        container.appendChild(card);
+    });
+}
+
+function verDetalhesFuncionario(nome) {
+    funcionarioSelecionado = nome;
+    document.getElementById('container-lista-funcionarios').classList.add('hidden');
+    document.getElementById('container-detalhes-ponto').classList.remove('hidden');
+    document.getElementById('nome-funcionario-selecionado').innerText = "Histórico de: " + nome;
+    
+    const corpo = document.getElementById('tabela-corpo');
+    corpo.innerHTML = "";
+    const pontosPorDia = {};
+
+    todosOsPontos.filter(p => p.funcionario === nome).forEach(p => {
+        const dataLimpa = p.data.split('T')[0]; 
+        const [ano, mes, dia] = dataLimpa.split('-');
+        const dataObj = new Date(ano, mes - 1, dia);
+        
+        const dataF = dataObj.toLocaleDateString('pt-BR');
+        const diaSemana = dataObj.toLocaleDateString('pt-BR', {weekday: 'long'});
+        const diaFormatado = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1).split('-')[0];
+
+        if (!pontosPorDia[dataF]) {
+            pontosPorDia[dataF] = { dia: diaFormatado, entrada: "-", sAlmoco: "-", rAlmoco: "-", sCafe: "-", rCafe: "-", saida: "-" };
+        }
+        
+        const tipo = p.tipo.toLowerCase();
+        if (tipo.includes("entrada")) pontosPorDia[dataF].entrada = p.hora;
+        else if (tipo.includes("almoço") && tipo.includes("saída")) pontosPorDia[dataF].sAlmoco = p.hora;
+        else if (tipo.includes("almoço") && tipo.includes("retorno")) pontosPorDia[dataF].rAlmoco = p.hora;
+        else if (tipo.includes("café") && tipo.includes("saída")) pontosPorDia[dataF].sCafe = p.hora;
+        else if (tipo.includes("café") && tipo.includes("retorno")) pontosPorDia[dataF].rCafe = p.hora;
+        else if (tipo.includes("saída") || tipo.includes("final")) pontosPorDia[dataF].saida = p.hora;
+    });
+
+    Object.keys(pontosPorDia).sort((a, b) => b.split('/').reverse().join().localeCompare(a.split('/').reverse().join())).forEach(data => {
+        const d = pontosPorDia[data];
+        corpo.innerHTML += `<tr><td>${data}</td><td style="color:#e30613; font-weight:bold;">${d.dia}</td><td>${d.entrada}</td><td>${d.sAlmoco}</td><td>${d.rAlmoco}</td><td>${d.sCafe}</td><td>${d.rCafe}</td><td>${d.saida}</td></tr>`;
+    });
+}
+
+function voltarParaLista() {
+    document.getElementById('container-lista-funcionarios').classList.remove('hidden');
+    document.getElementById('container-detalhes-ponto').classList.add('hidden');
+}
+
+// --- GESTÃO DE EQUIPE ---
+function capturarFotoCadastro() {
+    const canvas = document.getElementById('canvas-cadastro');
+    canvas.getContext('2d').drawImage(document.getElementById('video-cadastro'), 0, 0, 200, 150);
+    document.getElementById('foto-perfil-base64').value = canvas.toDataURL('image/jpeg', 0.8);
+    alert("Foto capturada!");
+}
+
+async function cadastrarFuncionario() {
+    const nome = document.getElementById('novo-nome').value.trim();
+    const idBio = document.getElementById('id-biometria').value;
+    const turnoAlmoco = document.getElementById('turno-almoco').value;
+    const foto = document.getElementById('foto-perfil-base64').value;
+    const dias = Array.from(document.querySelectorAll('.dia-semana:checked')).map(cb => cb.value).join(', ');
+
+    if (!nome) return alert("Digite o nome!");
+
+    const payload = { 
+        id: idEdicao,
+        nome, 
+        id_biometria: idBio, 
+        turnoAlmoco, 
+        diasTrabalho: dias, 
+        foto_perfil: foto ? foto : null,
+        modoEdicao: editandoModo
+    };
+
+    try {
+        const res = await fetch('/admin/cadastrar-funcionario', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await res.json();
+        if (res.ok) {
+            alert(data.message);
+            cancelarEdicao();
+            listarEquipe();
+            atualizarSelectPonto();
+        } else {
+            alert("Erro: " + data.message);
+        }
+    } catch (e) { alert("Erro ao conectar com o servidor."); }
+}
+
+async function listarEquipe() {
+    const res = await fetch('/admin/equipe', { headers: { 'ngrok-skip-browser-warning': 'true' } });
+    const equipe = await res.json();
+    const corpo = document.getElementById('tabela-equipe-corpo');
+    corpo.innerHTML = "";
+    equipe.forEach(f => {
+        corpo.innerHTML += `<tr>
+            <td>${f.nome}</td>
+            <td>${f.id_biometria || '-'}</td>
+            <td>${f.horario_almoco}</td>
+            <td>${f.dias_trabalho}</td>
+            <td>
+                <button class="btn-acao-edit" onclick="prepararEdicao(${f.id}, '${f.nome}', '${f.horario_almoco}', '${f.dias_trabalho}', '${f.id_biometria}')">EDITAR</button>
+                <button class="btn-acao-delete" onclick="removerFuncionario('${f.nome}')">EXCLUIR</button>
+            </td>
+        </tr>`;
+    });
+}
+
+function prepararEdicao(id, nome, almoco, dias, idBio) {
+    editandoModo = true;
+    idEdicao = id;
+    document.getElementById('form-titulo').innerText = "📝 Editar Funcionário";
+    document.getElementById('novo-nome').value = nome;
+    document.getElementById('id-biometria').value = (idBio === 'null' || !idBio) ? '' : idBio;
+    document.getElementById('turno-almoco').value = almoco;
+    document.getElementById('btn-cancelar-edit').classList.remove('hidden');
+    const listaDias = dias ? dias.split(', ') : [];
+    document.querySelectorAll('.dia-semana').forEach(cb => cb.checked = listaDias.includes(cb.value));
+}
+
+function cancelarEdicao() {
+    editandoModo = false;
+    idEdicao = null;
+    document.getElementById('form-titulo').innerText = "➕ Novo Funcionário";
+    document.getElementById('novo-nome').value = "";
+    document.getElementById('id-biometria').value = "";
+    document.getElementById('foto-perfil-base64').value = "";
+    document.getElementById('btn-cancelar-edit').classList.add('hidden');
+    document.querySelectorAll('.dia-semana').forEach(cb => cb.checked = false);
+}
+
+async function removerFuncionario(nome) {
+    if (confirm(`Excluir "${nome}"?`)) {
+        try {
+            const res = await fetch(`/admin/excluir-funcionario/${encodeURIComponent(nome)}`, { 
+                method: 'DELETE',
+                headers: { 'ngrok-skip-browser-warning': 'true' }
+            });
+            if (res.ok) {
+                alert("Funcionário excluído!");
+                listarEquipe();
+                atualizarSelectPonto();
+            }
+        } catch (e) { alert("Erro ao excluir."); }
+    }
+}
+
+async function atualizarSelectPonto() {
+    try {
+        const res = await fetch('/admin/equipe', { headers: { 'ngrok-skip-browser-warning': 'true' } });
+        const equipe = await res.json();
+        const select = document.getElementById('select-func');
+        if(!select) return;
+        select.innerHTML = '<option value="">Selecione seu nome</option>';
+        equipe.forEach(f => { select.innerHTML += `<option value="${f.nome}">${f.nome}</option>`; });
+    } catch (e) { console.error("Erro ao atualizar select"); }
+}
+
+async function importarArquivo() {
+    const fileInput = document.getElementById('arquivoBios');
+    if (!fileInput.files[0]) return alert("Selecione o arquivo do pendrive primeiro!");
+    const formData = new FormData();
+    formData.append('arquivo', fileInput.files[0]);
+    alert("Processando arquivo... Aguarde.");
+    try {
+        const res = await fetch('/admin/importar-biometria', { method: 'POST', body: formData });
+        const data = await res.json();
+        alert(data.message);
+        carregarRelatorio(); 
+    } catch (e) { alert("Erro ao conectar."); }
+}
+
+function gerarPDF() {
+    if (!funcionarioSelecionado) return alert("Selecione um funcionário no relatório!");
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('l', 'mm', 'a4');
+    doc.setFillColor(227, 6, 19); 
+    doc.rect(0, 0, 297, 30, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18);
+    doc.text("SANSIL - RELATÓRIO MENSAL DE PONTO", 14, 15);
+    doc.setFontSize(11);
+    doc.text(`Funcionário: ${funcionarioSelecionado.toUpperCase()}`, 14, 25);
+    doc.autoTable({
+        html: '#tabela-pontos-admin',
+        startY: 35,
+        theme: 'grid',
+        headStyles: { fillColor: [227, 6, 19], halign: 'center' },
+        styles: { halign: 'center', fontSize: 8 }
+    });
+    doc.save(`Ponto_Sansil_${funcionarioSelecionado}.pdf`);
+}
+</script>
+</body>
+</html>
