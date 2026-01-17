@@ -1,58 +1,44 @@
 const express = require('express');
-const mysql = require('mysql2/promise'); // Mudamos para mysql2
+const mysql = require('mysql2');
 const cors = require('cors');
 const path = require('path');
-const app = express();
+const multer = require('multer');
+const fs = require('fs');
 
-// --- CONEXÃO COM O BANCO DE DADOS (MySQL Railway) ---
-// O pool de conexão usa as variáveis que você viu na tela do Railway
+const app = express();
+const upload = multer({ dest: 'uploads/' });
+
+// --- CONEXÃO COM O BANCO (ADAPTADA PARA RAILWAY) ---
+// Ele tenta usar as variáveis do Railway; se não existirem, usa o seu localhost.
 const db = mysql.createPool({
-    host: process.env.MYSQLHOST,
+    host: process.env.MYSQLHOST || 'localhost',
     user: process.env.MYSQLUSER || 'root',
-    password: process.env.MYSQLPASSWORD,
-    database: process.env.MYSQLDATABASE,
+    password: process.env.MYSQLPASSWORD || '',
+    database: process.env.MYSQLDATABASE || 'sansil_ponto',
     port: process.env.MYSQLPORT || 3306,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
-});
+}).promise(); 
 
-// Inicialização das tabelas no MySQL
-async function initDb() {
-    try {
-        await db.query(`CREATE TABLE IF NOT EXISTS funcionarios (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            nome VARCHAR(255),
-            horario_almoco VARCHAR(50),
-            dias_trabalho VARCHAR(255),
-            foto_perfil LONGTEXT,
-            id_biometria VARCHAR(255)
-        )`);
-        await db.query(`CREATE TABLE IF NOT EXISTS registros_ponto (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            funcionario_id INT,
-            data DATE,
-            hora TIME,
-            tipo VARCHAR(100),
-            FOREIGN KEY(funcionario_id) REFERENCES funcionarios(id)
-        )`);
-        await db.query(`CREATE TABLE IF NOT EXISTS fotos_registros (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            registro_id INT,
-            foto_batida LONGTEXT,
-            FOREIGN KEY(registro_id) REFERENCES registros_ponto(id)
-        )`);
-        console.log("✅ Tabelas MySQL prontas e persistentes!");
-    } catch (err) {
-        console.error("❌ Erro ao criar tabelas:", err);
-    }
-}
-initDb();
-
-// --- CONFIGURAÇÕES DE SEGURANÇA ---
+// --- CONFIGURAÇÕES DE SEGURANÇA E LIMITES ---
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Middleware para evitar bloqueios de navegador (útil para o Railway/Ngrok)
+app.use((req, res, next) => {
+    res.setHeader('ngrok-skip-browser-warning', 'true');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, ngrok-skip-browser-warning, Authorization');
+    
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
+    next();
+});
+
 app.use(express.static(__dirname)); 
 
 // --- ROTAS ADMINISTRATIVAS ---
@@ -67,7 +53,8 @@ app.get('/admin/pontos', async (req, res) => {
         const [rows] = await db.query(sql);
         res.json({ pontos: rows });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        console.error("Erro ao buscar pontos:", err);
+        res.status(500).json({ message: "Erro no banco de dados." });
     }
 });
 
@@ -77,20 +64,21 @@ app.delete('/admin/excluir-funcionario/:nome', async (req, res) => {
         await db.query("DELETE FROM funcionarios WHERE nome = ?", [nome]);
         res.json({ message: "Funcionário excluído com sucesso!" });
     } catch (err) {
+        console.error(err);
         res.status(500).json({ message: "Erro ao excluir." });
     }
 });
 
 app.post('/admin/cadastrar-funcionario', async (req, res) => {
     const { id, nome, turnoAlmoco, diasTrabalho, foto_perfil, id_biometria } = req.body;
-    const fotoValida = (foto_perfil && foto_perfil.length > 100) ? foto_perfil : null;
-
     try {
+        const fotoValida = (foto_perfil && foto_perfil.length > 100) ? foto_perfil : null;
+
         if (id) {
             const sqlUpdate = `
                 UPDATE funcionarios 
                 SET nome = ?, horario_almoco = ?, dias_trabalho = ?, 
-                    foto_perfil = IFNULL(?, foto_perfil), id_biometria = ? 
+                    foto_perfil = COALESCE(?, foto_perfil), id_biometria = ? 
                 WHERE id = ?`;
             await db.query(sqlUpdate, [nome, turnoAlmoco, diasTrabalho, fotoValida, id_biometria, id]);
             res.json({ message: "Dados atualizados com sucesso!" });
@@ -100,7 +88,8 @@ app.post('/admin/cadastrar-funcionario', async (req, res) => {
             res.json({ message: "Funcionário cadastrado com sucesso!" });
         }
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        console.error("ERRO CRÍTICO NO BANCO:", err);
+        res.status(500).json({ message: "Erro interno: " + err.message });
     }
 });
 
@@ -109,21 +98,20 @@ app.get('/admin/equipe', async (req, res) => {
         const [rows] = await db.query("SELECT id, nome, horario_almoco, dias_trabalho, foto_perfil, id_biometria FROM funcionarios");
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        res.status(500).json({ message: "Erro ao buscar equipe." });
     }
 });
 
 // --- REGISTRO DE PONTO ---
 app.post('/bater-ponto', async (req, res) => {
     const { funcionario, tipo, foto } = req.body;
-    
     try {
-        const [rows] = await db.query("SELECT id FROM funcionarios WHERE nome = ?", [funcionario]);
-        if (rows.length === 0) return res.status(404).json({ message: "Funcionário não encontrado." });
+        const [result] = await db.query("SELECT id FROM funcionarios WHERE nome = ?", [funcionario]);
+        if (result.length === 0) return res.status(404).json({ message: "Funcionário não encontrado." });
         
-        const funcId = rows[0].id;
+        const funcId = result[0].id;
         const agora = new Date();
-        const dataHoje = agora.toISOString().split('T')[0]; 
+        const dataHoje = agora.toLocaleDateString('en-CA'); 
         const horaAtual = agora.toLocaleTimeString('pt-BR', { hour12: false });
 
         let tipoFinal = tipo;
@@ -131,21 +119,24 @@ app.post('/bater-ponto', async (req, res) => {
             tipoFinal = `${tipo} (⚠️ ATRASO)`;
         }
 
-        const [result] = await db.query("INSERT INTO registros_ponto (funcionario_id, data, hora, tipo) VALUES (?, ?, ?, ?)", 
+        const [resPonto] = await db.query("INSERT INTO registros_ponto (funcionario_id, data, hora, tipo) VALUES (?, ?, ?, ?)", 
             [funcId, dataHoje, horaAtual, tipoFinal]);
-        
+
         if (foto) {
-            await db.query("INSERT INTO fotos_registros (registro_id, foto_batida) VALUES (?, ?)", [result.insertId, foto]);
+            await db.query("INSERT INTO fotos_registros (registro_id, foto_batida) VALUES (?, ?)", [resPonto.insertId, foto]);
         }
+
         res.json({ message: "Ponto registrado com sucesso!" });
     } catch (err) {
+        console.error(err);
         res.status(500).json({ message: "Erro ao salvar ponto." });
     }
 });
 
 app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
 
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-    console.log(`🚀 Servidor Sansil Rodando na porta ${PORT}`);
+// --- INICIALIZAÇÃO (DINÂMICA PARA O RAILWAY) ---
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 SERVIDOR SANSIL RODANDO NA PORTA ${PORT}`);
 });
