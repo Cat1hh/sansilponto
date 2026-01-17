@@ -1,50 +1,62 @@
 const express = require('express');
-const mysql = require('mysql2');
+const mysql = require('mysql2/promise'); // Mudamos para mysql2
 const cors = require('cors');
 const path = require('path');
-const multer = require('multer');
-const fs = require('fs');
-
 const app = express();
-const upload = multer({ dest: 'uploads/' });
 
-// --- CONEXÃO COM O BANCO ---
+// --- CONEXÃO COM O BANCO DE DADOS (MySQL Railway) ---
+// O pool de conexão usa as variáveis que você viu na tela do Railway
 const db = mysql.createPool({
-    host: 'localhost',
-    user: 'root',
-    password: '',
-    database: 'sansil_ponto',
+    host: process.env.MYSQLHOST,
+    user: process.env.MYSQLUSER || 'root',
+    password: process.env.MYSQLPASSWORD,
+    database: process.env.MYSQLDATABASE,
+    port: process.env.MYSQLPORT || 3306,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
-}).promise(); 
-
-// --- CONFIGURAÇÕES DE SEGURANÇA E LIMITES ---
-// 1. Liberação total de CORS
-app.use(cors());
-
-// 2. Aumentar limite para fotos pesadas (ESSENCIAL PARA NÃO DAR "ERRO AO SALVAR")
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
-
-// 3. Middleware "Anti-Bloqueio" do Ngrok e CORS Manual
-app.use((req, res, next) => {
-    res.setHeader('ngrok-skip-browser-warning', 'true');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, ngrok-skip-browser-warning, Authorization');
-    
-    if (req.method === 'OPTIONS') {
-        return res.sendStatus(200);
-    }
-    next();
 });
 
+// Inicialização das tabelas no MySQL
+async function initDb() {
+    try {
+        await db.query(`CREATE TABLE IF NOT EXISTS funcionarios (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nome VARCHAR(255),
+            horario_almoco VARCHAR(50),
+            dias_trabalho VARCHAR(255),
+            foto_perfil LONGTEXT,
+            id_biometria VARCHAR(255)
+        )`);
+        await db.query(`CREATE TABLE IF NOT EXISTS registros_ponto (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            funcionario_id INT,
+            data DATE,
+            hora TIME,
+            tipo VARCHAR(100),
+            FOREIGN KEY(funcionario_id) REFERENCES funcionarios(id)
+        )`);
+        await db.query(`CREATE TABLE IF NOT EXISTS fotos_registros (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            registro_id INT,
+            foto_batida LONGTEXT,
+            FOREIGN KEY(registro_id) REFERENCES registros_ponto(id)
+        )`);
+        console.log("✅ Tabelas MySQL prontas e persistentes!");
+    } catch (err) {
+        console.error("❌ Erro ao criar tabelas:", err);
+    }
+}
+initDb();
+
+// --- CONFIGURAÇÕES DE SEGURANÇA ---
+app.use(cors());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(__dirname)); 
 
 // --- ROTAS ADMINISTRATIVAS ---
 
-// Listar todos os pontos
 app.get('/admin/pontos', async (req, res) => {
     try {
         const sql = `
@@ -55,103 +67,85 @@ app.get('/admin/pontos', async (req, res) => {
         const [rows] = await db.query(sql);
         res.json({ pontos: rows });
     } catch (err) {
-        console.error("Erro ao buscar pontos:", err);
-        res.status(500).json({ message: "Erro no banco de dados." });
+        res.status(500).json({ message: err.message });
     }
 });
 
-// Excluir funcionário
 app.delete('/admin/excluir-funcionario/:nome', async (req, res) => {
     const nome = decodeURIComponent(req.params.nome);
     try {
         await db.query("DELETE FROM funcionarios WHERE nome = ?", [nome]);
         res.json({ message: "Funcionário excluído com sucesso!" });
     } catch (err) {
-        console.error(err);
         res.status(500).json({ message: "Erro ao excluir." });
     }
 });
 
-// Cadastrar ou Editar Funcionário (LÓGICA DA FOTO CORRIGIDA)
 app.post('/admin/cadastrar-funcionario', async (req, res) => {
     const { id, nome, turnoAlmoco, diasTrabalho, foto_perfil, id_biometria } = req.body;
-    
-    try {
-        // Se a foto vier vazia ou for muito curta (não for um base64 real), vira null
-        const fotoValida = (foto_perfil && foto_perfil.length > 100) ? foto_perfil : null;
+    const fotoValida = (foto_perfil && foto_perfil.length > 100) ? foto_perfil : null;
 
+    try {
         if (id) {
-            // EDIÇÃO: Só troca a foto se fotoValida não for null (graças ao COALESCE)
             const sqlUpdate = `
                 UPDATE funcionarios 
                 SET nome = ?, horario_almoco = ?, dias_trabalho = ?, 
-                    foto_perfil = COALESCE(?, foto_perfil), id_biometria = ? 
+                    foto_perfil = IFNULL(?, foto_perfil), id_biometria = ? 
                 WHERE id = ?`;
             await db.query(sqlUpdate, [nome, turnoAlmoco, diasTrabalho, fotoValida, id_biometria, id]);
             res.json({ message: "Dados atualizados com sucesso!" });
         } else {
-            // NOVO CADASTRO
             const sqlInsert = "INSERT INTO funcionarios (nome, horario_almoco, dias_trabalho, foto_perfil, id_biometria) VALUES (?, ?, ?, ?, ?)";
             await db.query(sqlInsert, [nome, turnoAlmoco, diasTrabalho, fotoValida, id_biometria]);
             res.json({ message: "Funcionário cadastrado com sucesso!" });
         }
     } catch (err) {
-        console.error("ERRO CRÍTICO NO BANCO:", err);
-        res.status(500).json({ message: "Erro interno: " + err.message });
+        res.status(500).json({ message: err.message });
     }
 });
 
-// Listar Equipe
 app.get('/admin/equipe', async (req, res) => {
     try {
         const [rows] = await db.query("SELECT id, nome, horario_almoco, dias_trabalho, foto_perfil, id_biometria FROM funcionarios");
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ message: "Erro ao buscar equipe." });
+        res.status(500).json({ message: err.message });
     }
 });
 
 // --- REGISTRO DE PONTO ---
 app.post('/bater-ponto', async (req, res) => {
     const { funcionario, tipo, foto } = req.body;
+    
     try {
-        const [result] = await db.query("SELECT id FROM funcionarios WHERE nome = ?", [funcionario]);
-        if (result.length === 0) return res.status(404).json({ message: "Funcionário não encontrado." });
+        const [rows] = await db.query("SELECT id FROM funcionarios WHERE nome = ?", [funcionario]);
+        if (rows.length === 0) return res.status(404).json({ message: "Funcionário não encontrado." });
         
-        const funcId = result[0].id;
+        const funcId = rows[0].id;
         const agora = new Date();
-        const dataHoje = agora.toLocaleDateString('en-CA'); 
+        const dataHoje = agora.toISOString().split('T')[0]; 
         const horaAtual = agora.toLocaleTimeString('pt-BR', { hour12: false });
 
         let tipoFinal = tipo;
-        // Regra de atraso: após 05:55
         if (tipo.includes("Entrada") && (agora.getHours() > 5 || (agora.getHours() === 5 && agora.getMinutes() > 55))) {
             tipoFinal = `${tipo} (⚠️ ATRASO)`;
         }
 
-        const [resPonto] = await db.query("INSERT INTO registros_ponto (funcionario_id, data, hora, tipo) VALUES (?, ?, ?, ?)", 
+        const [result] = await db.query("INSERT INTO registros_ponto (funcionario_id, data, hora, tipo) VALUES (?, ?, ?, ?)", 
             [funcId, dataHoje, horaAtual, tipoFinal]);
-
+        
         if (foto) {
-            await db.query("INSERT INTO fotos_registros (registro_id, foto_batida) VALUES (?, ?)", [resPonto.insertId, foto]);
+            await db.query("INSERT INTO fotos_registros (registro_id, foto_batida) VALUES (?, ?)", [result.insertId, foto]);
         }
-
         res.json({ message: "Ponto registrado com sucesso!" });
     } catch (err) {
-        console.error(err);
         res.status(500).json({ message: "Erro ao salvar ponto." });
     }
 });
 
 app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
 
-// --- INICIALIZAÇÃO ---
-const PORT = 3000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`
-    --------------------------------------------------
-    🚀 SANSIL PONTO RODANDO NA PORTA ${PORT}
-    📡 ACESSE PELO HTTPS DO NGROK PARA A CÂMERA FUNCIONAR
-    --------------------------------------------------
-    `);
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
+    console.log(`🚀 Servidor Sansil Rodando na porta ${PORT}`);
 });
