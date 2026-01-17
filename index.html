@@ -110,15 +110,27 @@
     </div>
 
     <div id="tela-admin" class="hidden dashboard-container">
-        <nav class="sidebar">
-            <div class="sidebar-header"><img src="logosansil.png" alt="Sansil" style="width: 80px;"></div>
-            <ul class="nav-links">
-                <li class="active" id="btn-aba-relatorio" onclick="mudarAbaAdmin('aba-relatorio')"><span>📊 Relatórios</span></li>
-                <li id="btn-aba-funcionarios" onclick="mudarAbaAdmin('aba-funcionarios')"><span>👥 Funcionários</span></li>
-                <li onclick="gerarPDF()" class="nav-pdf"><span>📄 Gerar PDF</span></li>
-            </ul>
-            <button class="btn-logout" onclick="irPara('tela-perfil')">Sair</button>
-        </nav>
+        <header class="admin-top-bar">
+            <div class="logo-area">
+                <img src="logosansil.png" alt="Sansil" style="height: 40px;">
+                <h2 id="titulo-aba-mobile">Painel Sansil</h2>
+            </div>
+            
+            <button class="hamburger-btn" onclick="toggleMenu()">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+
+            <nav class="nav-menu-mobile" id="navMenu">
+                <ul>
+                    <li onclick="mudarAbaAdmin('aba-relatorio'); toggleMenu()">📊 Relatórios</li>
+                    <li onclick="mudarAbaAdmin('aba-funcionarios'); toggleMenu()">👥 Equipe</li>
+                    <li onclick="gerarPDF()">📄 Gerar PDF</li>
+                    <li onclick="irPara('tela-perfil'); toggleMenu()" class="sair-link">🚪 Sair</li>
+                </ul>
+            </nav>
+        </header>
 
         <main class="admin-content">
             <header>
@@ -378,7 +390,14 @@ async function carregarRelatorio() {
         renderizarListaFuncionarios();
     } catch (e) { console.error(e); }
 }
-
+function toggleMenu() {
+    const menu = document.getElementById('navMenu');
+    menu.classList.toggle('active');
+    
+    // Animação opcional no ícone do hambúrguer
+    const spans = document.querySelectorAll('.hamburger-btn span');
+    menu.classList.contains('active') ? spans[1].style.opacity = '0' : spans[1].style.opacity = '1';
+}
 function renderizarListaFuncionarios() {
     voltarParaLista(); 
     const container = document.getElementById('lista-nomes-resumo');
@@ -589,3 +608,4 @@ function gerarPDF() {
 </script>
 </body>
 </html>
+
