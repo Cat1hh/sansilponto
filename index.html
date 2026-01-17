@@ -9,68 +9,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     
-    <style>
-        .hidden { display: none !important; }
-        .logo-container { text-align: center; margin-bottom: 20px; }
-        .btn-voltar { background: #eee; border: 1px solid #ccc; padding: 10px; width: 100%; margin-top: 20px; cursor: pointer; border-radius: 5px; }
-        
-        #alerta-limpeza {
-            background: #fff3cd; color: #856404; padding: 15px; border-radius: 5px;
-            margin-bottom: 20px; border: 1px solid #ffeeba; font-weight: bold; text-align: center;
-        }
-
-        .form-container {
-            display: flex; flex-direction: column; align-items: center; text-align: center;
-            background: #f9f9f9; padding: 20px; border-radius: 10px; margin-bottom: 30px;
-        }
-
-        .input-group { width: 100%; max-width: 300px; margin: 10px 0; text-align: left; }
-        
-        .dias-check {
-            display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
-            margin-top: 10px; width: 100%;
-        }
-
-        .dias-check label { font-size: 14px; display: flex; align-items: center; gap: 5px; cursor: pointer; }
-
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { text-align: center !important; padding: 12px; border: 1px solid #ddd; }
-        th { background-color: #e30613; color: white; }
-
-        .btn-acao-edit { color: #ffc107; background: none; border: none; cursor: pointer; font-weight: bold; margin-right: 10px; text-transform: uppercase; }
-        .btn-acao-delete { color: #e30613; background: none; border: none; cursor: pointer; font-weight: bold; text-transform: uppercase; }
-        
-        .import-box {
-            background: #ffffff;
-            border: 2px dashed #e30613;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .video-ponto {
-            margin: 20px 0; 
-            border: 3px solid #e30613; 
-            border-radius: 15px; 
-            overflow: hidden; 
-            width: 320px; 
-            height: 240px; 
-            background: #000; 
-            position: relative; 
-            left: 50%; 
-            transform: translateX(-50%);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        }
-
-        /* Estilo para o aviso de carregamento */
-        #status-modelos {
-            font-size: 12px;
-            color: #666;
-            text-align: center;
-            margin-bottom: 10px;
-        }
-    </style>
 </head>
 <body>
 
@@ -90,6 +28,14 @@
             <label>Selecione seu nome:</label>
             <select id="select-func" style="width: 100%; padding: 10px;"></select>
         </div>
+        
+        <div class="input-group" style="margin: 10px auto;">
+            <label>📷 Escolher Câmera:</label>
+            <select id="camera-source" onchange="iniciarCamera()" style="width: 100%; padding: 10px; background-color: #f0f0f0;">
+                <option value="">Carregando câmeras...</option>
+            </select>
+        </div>
+
         <div class="input-group" style="margin: 10px auto;">
             <label>O que vai fazer agora?</label>
             <select id="tipo-ponto" style="width: 100%; padding: 10px;">
@@ -102,23 +48,37 @@
             </select>
         </div>
         <div class="video-ponto">
-            <video id="video" width="320" height="240" autoplay style="object-fit: cover;"></video>
+            <video id="video" width="320" height="240" autoplay playsinline style="object-fit: cover;"></video>
             <canvas id="canvas" width="320" height="240" class="hidden"></canvas>
         </div>
         <button id="btn-bater-ponto" class="btn-primary" onclick="capturarEFitrar()" style="background-color: #28a745;">📸 BATER PONTO AGORA</button>
         <button class="btn-voltar" onclick="irPara('tela-perfil')">← Voltar</button>
     </div>
 
-    <div id="tela-admin" class="hidden dashboard-container">
-        <nav class="sidebar">
-            <div class="sidebar-header"><img src="logosansil.png" alt="Sansil" style="width: 80px;"></div>
-            <ul class="nav-links">
-                <li class="active" id="btn-aba-relatorio" onclick="mudarAbaAdmin('aba-relatorio')"><span>📊 Relatórios</span></li>
-                <li id="btn-aba-funcionarios" onclick="mudarAbaAdmin('aba-funcionarios')"><span>👥 Funcionários</span></li>
-                <li onclick="gerarPDF()" class="nav-pdf"><span>📄 Gerar PDF</span></li>
-            </ul>
-            <button class="btn-logout" onclick="irPara('tela-perfil')">Sair</button>
-        </nav>
+  <div id="tela-admin" class="hidden dashboard-container">
+        <header class="admin-top-bar">
+            <div class="logo-area">
+                <img src="logosansil.png" alt="Sansil" style="height: 40px;">
+                <h2 id="titulo-aba-mobile">Painel Sansil</h2>
+            </div>
+            
+            <button class="hamburger-btn" onclick="toggleMenu()">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+
+            <nav class="nav-menu-mobile" id="navMenu">
+                <ul>
+                    <li onclick="mudarAbaAdmin('aba-relatorio'); toggleMenu()">📊 Relatórios</li>
+                    <li onclick="mudarAbaAdmin('aba-funcionarios'); toggleMenu()">👥 Equipe</li>
+                    <li onclick="gerarPDF()">📄 Gerar PDF</li>
+                    <li onclick="irPara('tela-perfil'); toggleMenu()" class="sair-link">🚪 Sair</li>
+                </ul>
+            </nav>
+        </header>
+
+        
 
         <main class="admin-content">
             <header>
@@ -160,7 +120,7 @@
                 <div class="form-container">
                     <h3 id="form-titulo">➕ Novo Funcionário</h3>
                     <div style="margin-bottom: 15px;">
-                        <video id="video-cadastro" width="200" height="150" autoplay style="border: 2px solid #ccc; border-radius: 10px; background: #000;"></video>
+                        <video id="video-cadastro" width="200" height="150" autoplay playsinline style="border: 2px solid #ccc; border-radius: 10px; background: #000;"></video>
                         <canvas id="canvas-cadastro" width="200" height="150" class="hidden"></canvas>
                         <br>
                         <button class="btn-primary" onclick="capturarFotoCadastro()" style="padding: 5px 10px; font-size: 12px; margin-top: 5px;">📸 Tirar Foto Oficial</button>
@@ -217,7 +177,14 @@ let streamPrincipal;
 let streamCadastro;
 let modelosCarregados = false;
 
-// 1. CARREGAR MODELOS AO ABRIR (FICA MUITO MAIS RÁPIDO)
+function toggleMenu() {
+    const menu = document.getElementById('navMenu');
+    const btn = document.querySelector('.hamburger-btn');
+    menu.classList.toggle('active');
+    btn.classList.toggle('open');
+}
+
+// 1. CARREGAR MODELOS AO ABRIR
 async function carregarModelos() {
     try {
         const MODEL_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
@@ -232,21 +199,76 @@ async function carregarModelos() {
     }
 }
 
-window.onload = () => { 
-    atualizarSelectPonto(); 
-    carregarModelos(); 
+window.onload = async () => { 
+    await carregarModelos();
+    await atualizarSelectPonto(); 
+    await listarCameras(); // Inicia a lista de câmeras ao carregar
 };
+
+// --- NOVA FUNÇÃO: LISTAR CÂMERAS ---
+async function listarCameras() {
+    const selectCamera = document.getElementById('camera-source');
+    selectCamera.innerHTML = '<option value="">Selecione a câmera...</option>';
+
+    try {
+        // Pede permissão inicial para conseguir ler os nomes das câmeras
+        await navigator.mediaDevices.getUserMedia({ video: true });
+        
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+        selectCamera.innerHTML = ''; // Limpa para adicionar as reais
+        
+        videoDevices.forEach((device, index) => {
+            const option = document.createElement('option');
+            option.value = device.deviceId;
+            option.text = device.label || `Câmera ${index + 1}`;
+            selectCamera.appendChild(option);
+        });
+        
+        // Se houver câmeras, seleciona a última (geralmente frontal em mobile, ou a principal)
+        if (videoDevices.length > 0) {
+           // Opcional: tentar selecionar a câmera frontal por padrão se o label contiver 'front'
+           // ou apenas deixar a primeira da lista.
+           selectCamera.value = videoDevices[0].deviceId; 
+        }
+
+    } catch (err) {
+        console.error("Erro ao listar câmeras:", err);
+        selectCamera.innerHTML = '<option value="">Câmera Padrão</option>';
+    }
+}
 
 // --- NAVEGAÇÃO E CÂMERAS ---
 async function iniciarCamera() {
+    const selectCamera = document.getElementById('camera-source');
+    const deviceId = selectCamera.value;
+    
+    // Parar câmera anterior se existir
+    if (streamPrincipal) {
+        streamPrincipal.getTracks().forEach(track => track.stop());
+    }
+
+    const constraints = {
+        video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'user' }
+    };
+
     try {
-        streamPrincipal = await navigator.mediaDevices.getUserMedia({ video: true });
-        document.getElementById('video').srcObject = streamPrincipal;
-    } catch (err) { alert("Erro ao acessar a câmera."); }
+        streamPrincipal = await navigator.mediaDevices.getUserMedia(constraints);
+        const videoElement = document.getElementById('video');
+        videoElement.srcObject = streamPrincipal;
+        // Correção para iOS/Safari não travar o vídeo
+        videoElement.setAttribute("playsinline", true); 
+    } catch (err) { 
+        console.error("Erro ao acessar a câmera:", err);
+        alert("Erro ao acessar a câmera. Verifique as permissões."); 
+    }
 }
 
 async function iniciarCameraCadastro() {
+    // Para o cadastro mantemos simples (padrão do sistema), ou pode duplicar a lógica se quiser
     try {
+        if (streamCadastro) streamCadastro.getTracks().forEach(t => t.stop());
         streamCadastro = await navigator.mediaDevices.getUserMedia({ video: true });
         document.getElementById('video-cadastro').srcObject = streamCadastro;
     } catch (err) { console.log("Câmera de cadastro negada."); }
@@ -261,7 +283,12 @@ function irPara(idTela) {
     document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden'));
     document.getElementById(idTela).classList.remove('hidden');
     pararTodasCameras();
-    if (idTela === 'tela-ponto') iniciarCamera();
+    
+    // Só inicia a câmera se for para a tela de ponto
+    if (idTela === 'tela-ponto') {
+        // Pequeno delay para garantir que o elemento está visível
+        setTimeout(iniciarCamera, 100);
+    }
 }
 
 // --- REGISTRO DE PONTO (FOTO) OTIMIZADO ---
@@ -323,18 +350,15 @@ async function capturarEFitrar() {
 }
 
 async function validarIdentidadeAcelerada(videoEl, fotoReferencia) {
-    // 1. Detecta na câmera (usando o modelo Tiny que é mais rápido)
     const detecAtual = await faceapi.detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
     if (!detecAtual) return false;
 
-    // 2. Detecta na foto de referência
     const imgRef = await faceapi.fetchImage(fotoReferencia);
     const detecRef = await faceapi.detectSingleFace(imgRef, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
     if (!detecRef) return false;
 
-    // 3. Compara
     const distancia = faceapi.euclideanDistance(detecAtual.descriptor, detecRef.descriptor);
-    return distancia < 0.60; // Limite de precisão (menor é mais rigoroso)
+    return distancia < 0.60;
 }
 
 // --- ADMINISTRAÇÃO ---
