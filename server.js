@@ -1,11 +1,10 @@
 const express = require('express');
-const mysql = require('mysql2/promise'); // Mudamos para mysql2
+const mysql = require('mysql2/promise');
 const cors = require('cors');
 const path = require('path');
 const app = express();
 
 // --- CONEXÃO COM O BANCO DE DADOS (MySQL Railway) ---
-// O pool de conexão usa as variáveis que você viu na tela do Railway
 const db = mysql.createPool({
     host: process.env.MYSQLHOST,
     user: process.env.MYSQLUSER || 'root',
@@ -20,29 +19,26 @@ const db = mysql.createPool({
 // Inicialização das tabelas no MySQL
 async function initDb() {
     try {
+        // TABELA AJUSTADA: Removida foto_perfil e adicionada SENHA (PIN)
         await db.query(`CREATE TABLE IF NOT EXISTS funcionarios (
             id INT AUTO_INCREMENT PRIMARY KEY,
             nome VARCHAR(255),
+            senha VARCHAR(10) DEFAULT '1234', 
             horario_almoco VARCHAR(50),
             dias_trabalho VARCHAR(255),
-            foto_perfil LONGTEXT,
             id_biometria VARCHAR(255)
         )`);
+
         await db.query(`CREATE TABLE IF NOT EXISTS registros_ponto (
             id INT AUTO_INCREMENT PRIMARY KEY,
             funcionario_id INT,
             data DATE,
             hora TIME,
             tipo VARCHAR(100),
-            FOREIGN KEY(funcionario_id) REFERENCES funcionarios(id)
+            FOREIGN KEY(funcionario_id) REFERENCES funcionarios(id) ON DELETE CASCADE
         )`);
-        await db.query(`CREATE TABLE IF NOT EXISTS fotos_registros (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            registro_id INT,
-            foto_batida LONGTEXT,
-            FOREIGN KEY(registro_id) REFERENCES registros_ponto(id)
-        )`);
-        console.log("✅ Tabelas MySQL prontas e persistentes!");
+
+        console.log("✅ Tabelas MySQL prontas e persistentes (Sistema de PIN)!");
     } catch (err) {
         console.error("❌ Erro ao criar tabelas:", err);
     }
@@ -82,21 +78,19 @@ app.delete('/admin/excluir-funcionario/:nome', async (req, res) => {
 });
 
 app.post('/admin/cadastrar-funcionario', async (req, res) => {
-    const { id, nome, turnoAlmoco, diasTrabalho, foto_perfil, id_biometria } = req.body;
-    const fotoValida = (foto_perfil && foto_perfil.length > 100) ? foto_perfil : null;
+    const { id, nome, senha, turnoAlmoco, diasTrabalho, id_biometria } = req.body;
 
     try {
         if (id) {
             const sqlUpdate = `
                 UPDATE funcionarios 
-                SET nome = ?, horario_almoco = ?, dias_trabalho = ?, 
-                    foto_perfil = IFNULL(?, foto_perfil), id_biometria = ? 
+                SET nome = ?, senha = ?, horario_almoco = ?, dias_trabalho = ?, id_biometria = ? 
                 WHERE id = ?`;
-            await db.query(sqlUpdate, [nome, turnoAlmoco, diasTrabalho, fotoValida, id_biometria, id]);
+            await db.query(sqlUpdate, [nome, senha, turnoAlmoco, diasTrabalho, id_biometria, id]);
             res.json({ message: "Dados atualizados com sucesso!" });
         } else {
-            const sqlInsert = "INSERT INTO funcionarios (nome, horario_almoco, dias_trabalho, foto_perfil, id_biometria) VALUES (?, ?, ?, ?, ?)";
-            await db.query(sqlInsert, [nome, turnoAlmoco, diasTrabalho, fotoValida, id_biometria]);
+            const sqlInsert = "INSERT INTO funcionarios (nome, senha, horario_almoco, dias_trabalho, id_biometria) VALUES (?, ?, ?, ?, ?)";
+            await db.query(sqlInsert, [nome, senha || '1234', turnoAlmoco, diasTrabalho, id_biometria]);
             res.json({ message: "Funcionário cadastrado com sucesso!" });
         }
     } catch (err) {
@@ -106,20 +100,29 @@ app.post('/admin/cadastrar-funcionario', async (req, res) => {
 
 app.get('/admin/equipe', async (req, res) => {
     try {
-        const [rows] = await db.query("SELECT id, nome, horario_almoco, dias_trabalho, foto_perfil, id_biometria FROM funcionarios");
+        const [rows] = await db.query("SELECT id, nome, senha, horario_almoco, dias_trabalho, id_biometria FROM funcionarios");
         res.json(rows);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 });
 
-// --- REGISTRO DE PONTO ---
+// --- REGISTRO DE PONTO (VALIDAÇÃO POR PIN) ---
 app.post('/bater-ponto', async (req, res) => {
-    const { funcionario, tipo, foto } = req.body;
+    const { funcionario, senha, tipo } = req.body;
     
     try {
-        const [rows] = await db.query("SELECT id FROM funcionarios WHERE nome = ?", [funcionario]);
-        if (rows.length === 0) return res.status(404).json({ message: "Funcionário não encontrado." });
+        // Busca o funcionário e a senha dele
+        const [rows] = await db.query("SELECT id, senha FROM funcionarios WHERE nome = ?", [funcionario]);
+        
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, message: "Funcionário não encontrado." });
+        }
+
+        // Validação da Senha/PIN
+        if (rows[0].senha !== senha) {
+            return res.status(401).json({ success: false, message: "PIN incorreto!" });
+        }
         
         const funcId = rows[0].id;
         const agora = new Date();
@@ -131,15 +134,13 @@ app.post('/bater-ponto', async (req, res) => {
             tipoFinal = `${tipo} (⚠️ ATRASO)`;
         }
 
-        const [result] = await db.query("INSERT INTO registros_ponto (funcionario_id, data, hora, tipo) VALUES (?, ?, ?, ?)", 
+        await db.query("INSERT INTO registros_ponto (funcionario_id, data, hora, tipo) VALUES (?, ?, ?, ?)", 
             [funcId, dataHoje, horaAtual, tipoFinal]);
         
-        if (foto) {
-            await db.query("INSERT INTO fotos_registros (registro_id, foto_batida) VALUES (?, ?)", [result.insertId, foto]);
-        }
-        res.json({ message: "Ponto registrado com sucesso!" });
+        res.json({ success: true, message: "Ponto registrado com sucesso!" });
     } catch (err) {
-        res.status(500).json({ message: "Erro ao salvar ponto." });
+        console.error(err);
+        res.status(500).json({ success: false, message: "Erro ao salvar ponto." });
     }
 });
 
