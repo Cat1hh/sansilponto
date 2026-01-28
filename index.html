@@ -110,27 +110,15 @@
     </div>
 
     <div id="tela-admin" class="hidden dashboard-container">
-        <header class="admin-top-bar">
-            <div class="logo-area">
-                <img src="logosansil.png" alt="Sansil" style="height: 40px;">
-                <h2 id="titulo-aba-mobile">Painel Sansil</h2>
-            </div>
-            
-            <button class="hamburger-btn" onclick="toggleMenu()">
-                <span></span>
-                <span></span>
-                <span></span>
-            </button>
-
-            <nav class="nav-menu-mobile" id="navMenu">
-                <ul>
-                    <li onclick="mudarAbaAdmin('aba-relatorio'); toggleMenu()">📊 Relatórios</li>
-                    <li onclick="mudarAbaAdmin('aba-funcionarios'); toggleMenu()">👥 Equipe</li>
-                    <li onclick="gerarPDF()">📄 Gerar PDF</li>
-                    <li onclick="irPara('tela-perfil'); toggleMenu()" class="sair-link">🚪 Sair</li>
-                </ul>
-            </nav>
-        </header>
+        <nav class="sidebar">
+            <div class="sidebar-header"><img src="logosansil.png" alt="Sansil" style="width: 80px;"></div>
+            <ul class="nav-links">
+                <li class="active" id="btn-aba-relatorio" onclick="mudarAbaAdmin('aba-relatorio')"><span>📊 Relatórios</span></li>
+                <li id="btn-aba-funcionarios" onclick="mudarAbaAdmin('aba-funcionarios')"><span>👥 Funcionários</span></li>
+                <li onclick="gerarPDF()" class="nav-pdf"><span>📄 Gerar PDF</span></li>
+            </ul>
+            <button class="btn-logout" onclick="irPara('tela-perfil')">Sair</button>
+        </nav>
 
         <main class="admin-content">
             <header>
@@ -229,17 +217,19 @@ let streamPrincipal;
 let streamCadastro;
 let modelosCarregados = false;
 
-// 1. CARREGAR MODELOS AO ABRIR (FICA MUITO MAIS RÁPIDO)
+// 1. CARREGAR MODELOS
 async function carregarModelos() {
     try {
-        const MODEL_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
+        const MODEL_URL = '/models'; 
         await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
         await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
         await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+
         modelosCarregados = true;
         document.getElementById('status-modelos').innerText = "✅ Biometria Pronta";
         document.getElementById('status-modelos').style.color = "green";
     } catch (e) {
+        console.error(e);
         document.getElementById('status-modelos').innerText = "❌ Erro ao carregar biometria";
     }
 }
@@ -276,80 +266,102 @@ function irPara(idTela) {
     if (idTela === 'tela-ponto') iniciarCamera();
 }
 
-// --- REGISTRO DE PONTO (FOTO) OTIMIZADO ---
+// --- LÓGICA DE BIOMETRIA ---
+function calcularEAR(olho) {
+    const dist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
+    const A = dist(olho[1], olho[5]);
+    const B = dist(olho[2], olho[4]);
+    const C = dist(olho[0], olho[3]);
+    return (A + B) / (2.0 * C);
+}
+
+async function detectarPiscar(videoEl, tentativas = 15) {
+    for (let i = 0; i < tentativas; i++) {
+        const det = await faceapi.detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
+        if (det) {
+            const ear = (calcularEAR(det.landmarks.getLeftEye()) + calcularEAR(det.landmarks.getRightEye())) / 2;
+            if (ear < 0.20) return true; 
+        }
+        await new Promise(r => setTimeout(r, 200));
+    }
+    return false;
+}
+
+async function validarIdentidadeAcelerada(videoEl, fotoReferencia) {
+    try {
+        const imgRef = await faceapi.fetchImage(fotoReferencia);
+        const detecRef = await faceapi.detectSingleFace(imgRef, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+        if (!detecRef) return false;
+
+        let acertos = 0;
+        for (let i = 0; i < 3; i++) {
+            const detecAtual = await faceapi.detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+            if (detecAtual) {
+                const distancia = faceapi.euclideanDistance(detecAtual.descriptor, detecRef.descriptor);
+                if (distancia < 0.45) acertos++;
+            }
+            await new Promise(r => setTimeout(r, 250));
+        }
+        return acertos >= 2;
+    } catch (e) { return false; }
+}
+
+// --- REGISTRO DE PONTO ---
 async function capturarEFitrar() {
     const nome = document.getElementById('select-func').value;
     const tipo = document.getElementById('tipo-ponto').value;
     const btn = document.getElementById('btn-bater-ponto');
-    
-    if (!nome) { alert("Selecione seu nome!"); return; }
-    if (!modelosCarregados) { alert("Aguarde o carregamento do sistema..."); return; }
+
+    if (!nome) return alert("Selecione seu nome!");
+    if (!modelosCarregados) return alert("Aguarde o sistema carregar...");
 
     btn.disabled = true;
+    btn.innerText = "👁️ PISQUE OS OLHOS";
+
+    // 1. Liveness (Piscar)
+    const passouLiveness = await detectarPiscar(document.getElementById('video'));
+    if (!passouLiveness) {
+        alert("❌ Falha: Pisque os olhos para provar que você é real.");
+        btn.disabled = false;
+        btn.innerText = "📸 BATER PONTO AGORA";
+        return;
+    }
+
     btn.innerText = "VALIDANDO ROSTO...";
 
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const context = canvas.getContext('2d');
-    context.drawImage(video, 0, 0, 320, 240);
-    const fotoCapturadaBase64 = canvas.toDataURL('image/png');
-
     try {
-        const resFunc = await fetch(`/admin/equipe`, { headers: { 'ngrok-skip-browser-warning': 'true' } });
+        const resFunc = await fetch(`/admin/equipe`);
         const equipe = await resFunc.json();
         const dadosFunc = equipe.find(f => f.nome === nome);
 
         if (!dadosFunc || !dadosFunc.foto_perfil) {
-            alert("Erro: Funcionário sem foto oficial cadastrada.");
-            btn.disabled = false;
-            btn.innerText = "📸 BATER PONTO AGORA";
-            return;
+            alert("Erro: Foto oficial não encontrada.");
+        } else {
+            // 2. Reconhecimento Facial
+            const faceOk = await validarIdentidadeAcelerada(document.getElementById('video'), dadosFunc.foto_perfil);
+            if (faceOk) {
+                // 3. Enviar para o servidor
+                const resPonto = await fetch('/bater-ponto', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ funcionario: nome, tipo: tipo })
+                });
+                if (resPonto.ok) alert("✅ PONTO REGISTRADO COM SUCESSO!");
+                else alert("Erro ao salvar ponto.");
+                irPara('tela-perfil');
+            } else {
+                alert("❌ Rosto não reconhecido!");
+            }
         }
-
-        // Validação Acelerada com TinyFace
-        const eIdentico = await validarIdentidadeAcelerada(video, dadosFunc.foto_perfil);
-
-        if (!eIdentico) {
-            alert("❌ NÃO RECONHECIDO! Tente se aproximar mais da luz e olhar para a câmera.");
-            btn.disabled = false;
-            btn.innerText = "📸 BATER PONTO AGORA";
-            return;
-        }
-
-        await fetch('/bater-ponto', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ funcionario: nome, tipo: tipo, foto: fotoCapturadaBase64 })
-        });
-        
-        alert("✅ IDENTIDADE CONFIRMADA! Ponto registrado.");
-        irPara('tela-perfil');
-
-    } catch (e) { 
-        console.error(e);
-        alert("Erro técnico na validação."); 
+    } catch (e) {
+        alert("Erro de conexão.");
     } finally {
         btn.disabled = false;
         btn.innerText = "📸 BATER PONTO AGORA";
     }
 }
 
-async function validarIdentidadeAcelerada(videoEl, fotoReferencia) {
-    // 1. Detecta na câmera (usando o modelo Tiny que é mais rápido)
-    const detecAtual = await faceapi.detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-    if (!detecAtual) return false;
-
-    // 2. Detecta na foto de referência
-    const imgRef = await faceapi.fetchImage(fotoReferencia);
-    const detecRef = await faceapi.detectSingleFace(imgRef, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-    if (!detecRef) return false;
-
-    // 3. Compara
-    const distancia = faceapi.euclideanDistance(detecAtual.descriptor, detecRef.descriptor);
-    return distancia < 0.60; // Limite de precisão (menor é mais rigoroso)
-}
-
-// --- ADMINISTRAÇÃO ---
+// --- ADMINISTRAÇÃO E DEMAIS FUNÇÕES ---
 function checarAdmin() {
     const senha = prompt("Senha administrativa:");
     if (senha === "sansil2026") { 
@@ -374,30 +386,15 @@ function mudarAbaAdmin(abaId) {
     }
 }
 
-// --- RELATÓRIOS ---
 async function carregarRelatorio() {
     try {
-        const res = await fetch('/admin/pontos', { headers: { 'ngrok-skip-browser-warning': 'true' } });
+        const res = await fetch('/admin/pontos');
         const data = await res.json();
         todosOsPontos = data.pontos;
-        
-        const alerta = document.getElementById('alerta-limpeza');
-        if (data.diasRestantes <= 5) {
-            alerta.classList.remove('hidden');
-            document.getElementById('contagem-dias').innerText = data.diasRestantes;
-        } else alerta.classList.add('hidden');
-
         renderizarListaFuncionarios();
     } catch (e) { console.error(e); }
 }
-function toggleMenu() {
-    const menu = document.getElementById('navMenu');
-    menu.classList.toggle('active');
-    
-    // Animação opcional no ícone do hambúrguer
-    const spans = document.querySelectorAll('.hamburger-btn span');
-    menu.classList.contains('active') ? spans[1].style.opacity = '0' : spans[1].style.opacity = '1';
-}
+
 function renderizarListaFuncionarios() {
     voltarParaLista(); 
     const container = document.getElementById('lista-nomes-resumo');
@@ -407,7 +404,7 @@ function renderizarListaFuncionarios() {
         const total = todosOsPontos.filter(p => p.funcionario === nome).length;
         const card = document.createElement('div');
         card.className = "card-funcionario-admin";
-        card.innerHTML = `<strong>${nome}</strong><span>${total} registros</span>`;
+        card.innerHTML = `<strong>${nome}</strong><br><span>${total} registros</span>`;
         card.onclick = () => verDetalhesFuncionario(nome);
         container.appendChild(card);
     });
@@ -417,37 +414,27 @@ function verDetalhesFuncionario(nome) {
     funcionarioSelecionado = nome;
     document.getElementById('container-lista-funcionarios').classList.add('hidden');
     document.getElementById('container-detalhes-ponto').classList.remove('hidden');
-    document.getElementById('nome-funcionario-selecionado').innerText = "Histórico de: " + nome;
+    document.getElementById('nome-funcionario-selecionado').innerText = "Histórico: " + nome;
     
     const corpo = document.getElementById('tabela-corpo');
     corpo.innerHTML = "";
     const pontosPorDia = {};
 
     todosOsPontos.filter(p => p.funcionario === nome).forEach(p => {
-        const dataLimpa = p.data.split('T')[0]; 
-        const [ano, mes, dia] = dataLimpa.split('-');
-        const dataObj = new Date(ano, mes - 1, dia);
-        
-        const dataF = dataObj.toLocaleDateString('pt-BR');
-        const diaSemana = dataObj.toLocaleDateString('pt-BR', {weekday: 'long'});
-        const diaFormatado = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1).split('-')[0];
-
+        const dataF = new Date(p.data).toLocaleDateString('pt-BR');
         if (!pontosPorDia[dataF]) {
-            pontosPorDia[dataF] = { dia: diaFormatado, entrada: "-", sAlmoco: "-", rAlmoco: "-", sCafe: "-", rCafe: "-", saida: "-" };
+            pontosPorDia[dataF] = { dia: '---', entrada: "-", sAlmoco: "-", rAlmoco: "-", sCafe: "-", rCafe: "-", saida: "-" };
         }
-        
         const tipo = p.tipo.toLowerCase();
         if (tipo.includes("entrada")) pontosPorDia[dataF].entrada = p.hora;
         else if (tipo.includes("almoço") && tipo.includes("saída")) pontosPorDia[dataF].sAlmoco = p.hora;
         else if (tipo.includes("almoço") && tipo.includes("retorno")) pontosPorDia[dataF].rAlmoco = p.hora;
-        else if (tipo.includes("café") && tipo.includes("saída")) pontosPorDia[dataF].sCafe = p.hora;
-        else if (tipo.includes("café") && tipo.includes("retorno")) pontosPorDia[dataF].rCafe = p.hora;
         else if (tipo.includes("saída") || tipo.includes("final")) pontosPorDia[dataF].saida = p.hora;
     });
 
-    Object.keys(pontosPorDia).sort((a, b) => b.split('/').reverse().join().localeCompare(a.split('/').reverse().join())).forEach(data => {
+    Object.keys(pontosPorDia).reverse().forEach(data => {
         const d = pontosPorDia[data];
-        corpo.innerHTML += `<tr><td>${data}</td><td style="color:#e30613; font-weight:bold;">${d.dia}</td><td>${d.entrada}</td><td>${d.sAlmoco}</td><td>${d.rAlmoco}</td><td>${d.sCafe}</td><td>${d.rCafe}</td><td>${d.saida}</td></tr>`;
+        corpo.innerHTML += `<tr><td>${data}</td><td>-</td><td>${d.entrada}</td><td>${d.sAlmoco}</td><td>${d.rAlmoco}</td><td>-</td><td>-</td><td>${d.saida}</td></tr>`;
     });
 }
 
@@ -456,7 +443,6 @@ function voltarParaLista() {
     document.getElementById('container-detalhes-ponto').classList.add('hidden');
 }
 
-// --- GESTÃO DE EQUIPE ---
 function capturarFotoCadastro() {
     const canvas = document.getElementById('canvas-cadastro');
     canvas.getContext('2d').drawImage(document.getElementById('video-cadastro'), 0, 0, 200, 150);
@@ -467,145 +453,46 @@ function capturarFotoCadastro() {
 async function cadastrarFuncionario() {
     const nome = document.getElementById('novo-nome').value.trim();
     const idBio = document.getElementById('id-biometria').value;
-    const turnoAlmoco = document.getElementById('turno-almoco').value;
     const foto = document.getElementById('foto-perfil-base64').value;
-    const dias = Array.from(document.querySelectorAll('.dia-semana:checked')).map(cb => cb.value).join(', ');
-
     if (!nome) return alert("Digite o nome!");
 
-    const payload = { 
-        id: idEdicao,
-        nome, 
-        id_biometria: idBio, 
-        turnoAlmoco, 
-        diasTrabalho: dias, 
-        foto_perfil: foto ? foto : null,
-        modoEdicao: editandoModo
-    };
+    const payload = { id: idEdicao, nome, id_biometria: idBio, foto_perfil: foto, modoEdicao: editandoModo };
 
     try {
         const res = await fetch('/admin/cadastrar-funcionario', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        
-        const data = await res.json();
         if (res.ok) {
-            alert(data.message);
+            alert("Sucesso!");
             cancelarEdicao();
             listarEquipe();
             atualizarSelectPonto();
-        } else {
-            alert("Erro: " + data.message);
         }
-    } catch (e) { alert("Erro ao conectar com o servidor."); }
+    } catch (e) { alert("Erro ao salvar."); }
 }
 
 async function listarEquipe() {
-    const res = await fetch('/admin/equipe', { headers: { 'ngrok-skip-browser-warning': 'true' } });
+    const res = await fetch('/admin/equipe');
     const equipe = await res.json();
     const corpo = document.getElementById('tabela-equipe-corpo');
     corpo.innerHTML = "";
     equipe.forEach(f => {
-        corpo.innerHTML += `<tr>
-            <td>${f.nome}</td>
-            <td>${f.id_biometria || '-'}</td>
-            <td>${f.horario_almoco}</td>
-            <td>${f.dias_trabalho}</td>
-            <td>
-                <button class="btn-acao-edit" onclick="prepararEdicao(${f.id}, '${f.nome}', '${f.horario_almoco}', '${f.dias_trabalho}', '${f.id_biometria}')">EDITAR</button>
-                <button class="btn-acao-delete" onclick="removerFuncionario('${f.nome}')">EXCLUIR</button>
-            </td>
-        </tr>`;
+        corpo.innerHTML += `<tr><td>${f.nome}</td><td>${f.id_biometria || '-'}</td><td>${f.horario_almoco || '-'}</td><td>${f.dias_trabalho || '-'}</td>
+            <td><button onclick="removerFuncionario('${f.nome}')">EXCLUIR</button></td></tr>`;
     });
-}
-
-function prepararEdicao(id, nome, almoco, dias, idBio) {
-    editandoModo = true;
-    idEdicao = id;
-    document.getElementById('form-titulo').innerText = "📝 Editar Funcionário";
-    document.getElementById('novo-nome').value = nome;
-    document.getElementById('id-biometria').value = (idBio === 'null' || !idBio) ? '' : idBio;
-    document.getElementById('turno-almoco').value = almoco;
-    document.getElementById('btn-cancelar-edit').classList.remove('hidden');
-    const listaDias = dias ? dias.split(', ') : [];
-    document.querySelectorAll('.dia-semana').forEach(cb => cb.checked = listaDias.includes(cb.value));
-}
-
-function cancelarEdicao() {
-    editandoModo = false;
-    idEdicao = null;
-    document.getElementById('form-titulo').innerText = "➕ Novo Funcionário";
-    document.getElementById('novo-nome').value = "";
-    document.getElementById('id-biometria').value = "";
-    document.getElementById('foto-perfil-base64').value = "";
-    document.getElementById('btn-cancelar-edit').classList.add('hidden');
-    document.querySelectorAll('.dia-semana').forEach(cb => cb.checked = false);
-}
-
-async function removerFuncionario(nome) {
-    if (confirm(`Excluir "${nome}"?`)) {
-        try {
-            const res = await fetch(`/admin/excluir-funcionario/${encodeURIComponent(nome)}`, { 
-                method: 'DELETE',
-                headers: { 'ngrok-skip-browser-warning': 'true' }
-            });
-            if (res.ok) {
-                alert("Funcionário excluído!");
-                listarEquipe();
-                atualizarSelectPonto();
-            }
-        } catch (e) { alert("Erro ao excluir."); }
-    }
 }
 
 async function atualizarSelectPonto() {
     try {
-        const res = await fetch('/admin/equipe', { headers: { 'ngrok-skip-browser-warning': 'true' } });
+        const res = await fetch('/admin/equipe');
         const equipe = await res.json();
         const select = document.getElementById('select-func');
-        if(!select) return;
         select.innerHTML = '<option value="">Selecione seu nome</option>';
         equipe.forEach(f => { select.innerHTML += `<option value="${f.nome}">${f.nome}</option>`; });
-    } catch (e) { console.error("Erro ao atualizar select"); }
-}
-
-async function importarArquivo() {
-    const fileInput = document.getElementById('arquivoBios');
-    if (!fileInput.files[0]) return alert("Selecione o arquivo do pendrive primeiro!");
-    const formData = new FormData();
-    formData.append('arquivo', fileInput.files[0]);
-    alert("Processando arquivo... Aguarde.");
-    try {
-        const res = await fetch('/admin/importar-biometria', { method: 'POST', body: formData });
-        const data = await res.json();
-        alert(data.message);
-        carregarRelatorio(); 
-    } catch (e) { alert("Erro ao conectar."); }
-}
-
-function gerarPDF() {
-    if (!funcionarioSelecionado) return alert("Selecione um funcionário no relatório!");
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('l', 'mm', 'a4');
-    doc.setFillColor(227, 6, 19); 
-    doc.rect(0, 0, 297, 30, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(18);
-    doc.text("SANSIL - RELATÓRIO MENSAL DE PONTO", 14, 15);
-    doc.setFontSize(11);
-    doc.text(`Funcionário: ${funcionarioSelecionado.toUpperCase()}`, 14, 25);
-    doc.autoTable({
-        html: '#tabela-pontos-admin',
-        startY: 35,
-        theme: 'grid',
-        headStyles: { fillColor: [227, 6, 19], halign: 'center' },
-        styles: { halign: 'center', fontSize: 8 }
-    });
-    doc.save(`Ponto_Sansil_${funcionarioSelecionado}.pdf`);
+    } catch (e) { }
 }
 </script>
 </body>
 </html>
-
