@@ -3,65 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css"> 
     <title>Sistema de Ponto - Sansil</title>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
     
     <style>
+        /* Estilos complementares para o novo sistema de senha */
         .hidden { display: none !important; }
-        .logo-container { text-align: center; margin-bottom: 20px; }
-        .btn-voltar { background: #eee; border: 1px solid #ccc; padding: 10px; width: 100%; margin-top: 20px; cursor: pointer; border-radius: 5px; }
-        
-        /* Estilo do Teclado de Senha */
         .pin-input {
             width: 100%;
             padding: 15px;
             text-align: center;
             font-size: 32px;
-            letter-spacing: 15px;
+            letter-spacing: 10px;
             border: 2px solid #e30613;
             border-radius: 10px;
             margin-top: 10px;
             background: #fff;
+            font-weight: bold;
         }
-
-        .form-container {
-            background: #f9f9f9; padding: 20px; border-radius: 10px; margin-bottom: 30px;
+        .grid-nomes {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            padding: 20px 0;
         }
-
-        .input-group { width: 100%; max-width: 350px; margin: 10px auto; text-align: left; }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { text-align: center !important; padding: 12px; border: 1px solid #ddd; }
-        th { background-color: #e30613; color: white; }
-
         .card-funcionario-admin {
-            padding: 15px; background: white; border: 1px solid #ddd;
-            border-radius: 8px; cursor: pointer; text-align: center;
+            padding: 20px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: 0.3s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
+        .card-funcionario-admin:hover { border-color: #e30613; background: #fff5f5; }
+        .btn-voltar { background: #666; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-top: 10px; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div id="tela-perfil">
-        <div class="logo-container">
-            <img src="logosansil.png" alt="Sansil Padaria" style="width: 150px; margin-bottom: 10px;">
+        <div class="logo-container" style="text-align: center; margin-bottom: 30px;">
+            <img src="logosansil.png" alt="Sansil Padaria" style="width: 180px;">
         </div>
-        <button class="btn-primary" onclick="irPara('tela-ponto')">👤 REGISTRAR PONTO (SENHA)</button>
-        <button class="btn-outline" onclick="checarAdmin()">🔑 ÁREA DA DONA (RESTRITO)</button>
+        <button class="btn-primary" onclick="irPara('tela-ponto')" style="width: 100%; padding: 20px; font-size: 18px; margin-bottom: 15px;">👤 REGISTRAR MEU PONTO</button>
+        <button class="btn-outline" onclick="checarAdmin()" style="width: 100%; padding: 15px;">🔑 ÁREA ADMINISTRATIVA</button>
     </div>
 
     <div id="tela-ponto" class="hidden">
-        <div class="logo-container">
+        <div class="logo-container" style="text-align: center;">
             <img src="logosansil.png" alt="Sansil" style="width: 80px;">
         </div>
-        <h2>🥖 Registro de Ponto</h2>
+        <h2 style="text-align: center;">🥖 Registro de Ponto</h2>
         
         <div class="input-group">
             <label>Selecione seu nome:</label>
-            <select id="select-func" style="width: 100%; padding: 12px; font-size: 16px;"></select>
+            <select id="select-func" style="width: 100%; padding: 15px; font-size: 18px; border-radius: 8px;"></select>
         </div>
 
         <div class="input-group">
@@ -70,65 +72,63 @@
         </div>
 
         <div class="input-group">
-            <label>O que vai fazer?</label>
-            <select id="tipo-ponto" style="width: 100%; padding: 12px;">
-                <option value="Entrada">Entrada (Início)</option>
+            <label>O que você está fazendo agora?</label>
+            <select id="tipo-ponto" style="width: 100%; padding: 15px; font-size: 16px; border-radius: 8px;">
+                <option value="Entrada">Entrada (Início do Trabalho)</option>
                 <option value="Saída p/ Almoço">Saída p/ Almoço</option>
                 <option value="Retorno Almoço">Retorno Almoço</option>
-                <option value="Saída (Fim do Expediente)">Saída (Final)</option>
+                <option value="Saída (Fim do Expediente)">Saída (Final do Dia)</option>
             </select>
         </div>
 
-        <button id="btn-bater-ponto" class="btn-primary" onclick="confirmarPontoSenha()" style="background-color: #28a745; margin-top: 20px;">
-            CONFIRMAR PONTO
+        <button id="btn-bater-ponto" class="btn-primary" onclick="confirmarPontoSenha()" style="background-color: #28a745; width: 100%; padding: 20px; margin-top: 25px; font-weight: bold;">
+            CONFIRMAR REGISTRO
         </button>
-        <button class="btn-voltar" onclick="irPara('tela-perfil')">← Voltar</button>
+        <button class="btn-voltar" onclick="irPara('tela-perfil')" style="width: 100%;">← Voltar</button>
     </div>
 
-    <div id="tela-admin" class="hidden dashboard-container">
-        <nav class="sidebar">
-            <div class="sidebar-header"><img src="logosansil.png" alt="Sansil" style="width: 80px;"></div>
-            <ul class="nav-links">
-                <li class="active" id="btn-aba-relatorio" onclick="mudarAbaAdmin('aba-relatorio')"><span>📊 Relatórios</span></li>
-                <li id="btn-aba-funcionarios" onclick="mudarAbaAdmin('aba-funcionarios')"><span>👥 Funcionários</span></li>
-            </ul>
-            <button class="btn-logout" onclick="irPara('tela-perfil')">Sair</button>
-        </nav>
+    <div id="tela-admin" class="hidden">
+        <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+            <button class="btn-primary" onclick="mudarAbaAdmin('aba-relatorio')">📊 Relatórios</button>
+            <button class="btn-primary" onclick="mudarAbaAdmin('aba-funcionarios')">👥 Equipe</button>
+            <button class="btn-voltar" onclick="irPara('tela-perfil')" style="margin:0">Sair</button>
+        </div>
 
         <main class="admin-content">
             <section id="aba-relatorio" class="admin-section">
                 <div id="container-lista-funcionarios">
+                    <h3>Selecione um funcionário para ver o histórico:</h3>
                     <div id="lista-nomes-resumo" class="grid-nomes"></div>
                 </div>
+                
                 <div id="container-detalhes-ponto" class="hidden">
-                    <button class="btn-voltar" onclick="voltarParaLista()" style="width: auto; margin-bottom: 10px;">⬅ Voltar</button>
-                    <h3 id="nome-funcionario-selecionado"></h3>
-                    <table id="tabela-pontos-admin">
-                        <thead>
-                            <tr><th>Data</th><th>Entrada</th><th>Almoço</th><th>Retorno</th><th>Saída</th></tr>
-                        </thead>
-                        <tbody id="tabela-corpo"></tbody>
-                    </table>
+                    <button class="btn-voltar" onclick="voltarParaLista()">⬅ Voltar para Lista</button>
+                    <h3 id="nome-funcionario-selecionado" style="margin-top: 15px; color: #e30613;"></h3>
+                    <div style="overflow-x: auto;">
+                        <table>
+                            <thead>
+                                <tr><th>Data</th><th>Hora</th><th>Tipo de Registro</th></tr>
+                            </thead>
+                            <tbody id="tabela-corpo"></tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
 
             <section id="aba-funcionarios" class="admin-section hidden">
-                <div class="form-container">
-                    <h3>➕ Novo/Editar Funcionário</h3>
-                    <input type="text" id="novo-nome" placeholder="Nome Completo" style="width: 100%; margin-bottom: 10px;">
+                <div class="form-container" style="background: #f4f4f4; padding: 20px; border-radius: 10px;">
+                    <h3>➕ Novo / Editar Funcionário</h3>
+                    <input type="text" id="novo-nome" placeholder="Nome Completo" style="width: 100%; margin-bottom: 10px; padding: 10px;">
                     <input type="password" id="novo-senha" maxlength="4" placeholder="Senha (4 números)" style="width: 100%; margin-bottom: 10px; padding: 10px;">
-                    <input type="number" id="id-biometria" placeholder="ID Aparelho (Opcional)" style="width: 100%; margin-bottom: 10px;">
-                    <button class="btn-primary" onclick="cadastrarFuncionario()">SALVAR FUNCIONÁRIO</button>
+                    <button class="btn-primary" onclick="cadastrarFuncionario()" style="width: 100%;">SALVAR NO SISTEMA</button>
                 </div>
 
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr><th>Nome</th><th>Ações</th></tr>
-                        </thead>
-                        <tbody id="tabela-equipe-corpo"></tbody>
-                    </table>
-                </div>
+                <table style="margin-top: 20px; width: 100%;">
+                    <thead>
+                        <tr><th>Nome</th><th>Ações</th></tr>
+                    </thead>
+                    <tbody id="tabela-equipe-corpo"></tbody>
+                </table>
             </section>
         </main>
     </div>
@@ -144,11 +144,9 @@ window.onload = () => {
 function irPara(idTela) {
     document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden'));
     document.getElementById(idTela).classList.remove('hidden');
-    // Limpa campos de senha ao navegar
-    if(document.getElementById('senha-ponto')) document.getElementById('senha-ponto').value = "";
+    if(idTela === 'tela-ponto') document.getElementById('senha-ponto').value = "";
 }
 
-// --- LÓGICA DE REGISTRO COM SENHA ---
 async function confirmarPontoSenha() {
     const nome = document.getElementById('select-func').value;
     const senhaDigitada = document.getElementById('senha-ponto').value;
@@ -156,7 +154,7 @@ async function confirmarPontoSenha() {
     const btn = document.getElementById('btn-bater-ponto');
 
     if (!nome || senhaDigitada.length < 4) {
-        alert("Selecione seu nome e digite a senha de 4 dígitos!");
+        alert("Escolha seu nome e digite a senha de 4 dígitos!");
         return;
     }
 
@@ -168,9 +166,7 @@ async function confirmarPontoSenha() {
         const equipe = await res.json();
         const func = equipe.find(f => f.nome === nome);
 
-        if (!func) {
-            alert("Funcionário não encontrado!");
-        } else if (func.senha !== senhaDigitada) {
+        if (!func || func.senha !== senhaDigitada) {
             alert("❌ SENHA INCORRETA!");
             document.getElementById('senha-ponto').value = "";
         } else {
@@ -181,27 +177,26 @@ async function confirmarPontoSenha() {
             });
 
             if (resPonto.ok) {
-                alert("✅ PONTO REGISTRADO COM SUCESSO!");
+                alert("✅ PONTO REGISTRADO!");
                 irPara('tela-perfil');
             } else {
-                alert("Erro ao salvar ponto.");
+                alert("Erro ao salvar no banco de dados.");
             }
         }
     } catch (e) {
-        alert("Erro de conexão.");
+        alert("Erro de conexão com o servidor.");
     } finally {
         btn.disabled = false;
-        btn.innerText = "CONFIRMAR PONTO";
+        btn.innerText = "CONFIRMAR REGISTRO";
     }
 }
 
-// --- ADMIN ---
 function checarAdmin() {
-    const senha = prompt("Senha administrativa:");
+    const senha = prompt("Senha Administrativa:");
     if (senha === "sansil2026") { 
         irPara('tela-admin');
         mudarAbaAdmin('aba-relatorio');
-    } else if (senha !== null) alert("Incorreta!");
+    } else if (senha !== null) alert("Senha Inválida!");
 }
 
 function mudarAbaAdmin(abaId) {
@@ -214,17 +209,16 @@ function mudarAbaAdmin(abaId) {
 async function cadastrarFuncionario() {
     const nome = document.getElementById('novo-nome').value.trim();
     const senha = document.getElementById('novo-senha').value;
-    const idBio = document.getElementById('id-biometria').value;
 
-    if (!nome || senha.length < 4) return alert("Preencha nome e senha (4 dígitos)!");
+    if (!nome || senha.length < 4) return alert("Preencha nome e senha de 4 dígitos!");
 
     try {
         await fetch('/admin/cadastrar-funcionario', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nome, senha, id_biometria: idBio })
+            body: JSON.stringify({ nome, senha })
         });
-        alert("Funcionário salvo!");
+        alert("Funcionário Salvo!");
         document.getElementById('novo-nome').value = "";
         document.getElementById('novo-senha').value = "";
         listarEquipe();
@@ -238,13 +232,15 @@ async function listarEquipe() {
     const corpo = document.getElementById('tabela-equipe-corpo');
     corpo.innerHTML = "";
     equipe.forEach(f => {
-        corpo.innerHTML += `<tr><td>${f.nome}</td>
-            <td><button onclick="removerFuncionario('${f.nome}')" style="color:red">EXCLUIR</button></td></tr>`;
+        corpo.innerHTML += `<tr>
+            <td>${f.nome}</td>
+            <td><button onclick="removerFuncionario('${f.nome}')" style="background:none; border:none; color:red; cursor:pointer;">❌ Excluir</button></td>
+        </tr>`;
     });
 }
 
 async function removerFuncionario(nome) {
-    if(!confirm("Deseja excluir " + nome + "?")) return;
+    if(!confirm(`Excluir permanentemente ${nome}?`)) return;
     await fetch(`/admin/excluir-funcionario/${encodeURIComponent(nome)}`, { method: 'DELETE' });
     listarEquipe();
     atualizarSelectPonto();
@@ -274,15 +270,19 @@ function renderizarListaFuncionarios() {
 function verDetalhesFuncionario(nome) {
     document.getElementById('container-lista-funcionarios').classList.add('hidden');
     document.getElementById('container-detalhes-ponto').classList.remove('hidden');
-    document.getElementById('nome-funcionario-selecionado').innerText = nome;
+    document.getElementById('nome-funcionario-selecionado').innerText = `Histórico de: ${nome}`;
     
     const corpo = document.getElementById('tabela-corpo');
     corpo.innerHTML = "";
     const pontosFiltrados = todosOsPontos.filter(p => p.funcionario === nome);
     
     pontosFiltrados.forEach(p => {
-        const dataF = new Date(p.data).toLocaleDateString('pt-BR');
-        corpo.innerHTML += `<tr><td>${dataF}</td><td>${p.hora}</td><td colspan="3">${p.tipo}</td></tr>`;
+        const dataF = new Date(p.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'});
+        corpo.innerHTML += `<tr>
+            <td>${dataF}</td>
+            <td>${p.hora.substring(0,5)}h</td>
+            <td>${p.tipo}</td>
+        </tr>`;
     });
 }
 
@@ -292,11 +292,13 @@ function voltarParaLista() {
 }
 
 async function atualizarSelectPonto() {
-    const res = await fetch('/admin/equipe');
-    const equipe = await res.json();
-    const select = document.getElementById('select-func');
-    select.innerHTML = '<option value="">Selecione seu nome</option>';
-    equipe.forEach(f => { select.innerHTML += `<option value="${f.nome}">${f.nome}</option>`; });
+    try {
+        const res = await fetch('/admin/equipe');
+        const equipe = await res.json();
+        const select = document.getElementById('select-func');
+        select.innerHTML = '<option value="">Selecione seu nome</option>';
+        equipe.forEach(f => { select.innerHTML += `<option value="${f.nome}">${f.nome}</option>`; });
+    } catch(e) { console.error("Erro ao carregar lista de nomes."); }
 }
 </script>
 </body>
