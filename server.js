@@ -4,7 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const app = express();
 
-// --- CONEXÃO COM O BANCO DE DADOS (MySQL Railway) ---
+// --- CONEXÃO COM O BANCO DE DADOS ---
 const db = mysql.createPool({
     host: process.env.MYSQLHOST,
     user: process.env.MYSQLUSER || 'root',
@@ -16,10 +16,9 @@ const db = mysql.createPool({
     queueLimit: 0
 });
 
-// Inicialização das tabelas no MySQL
+// 1. Inicialização das tabelas com PIN e CASCADE
 async function initDb() {
     try {
-        // TABELA AJUSTADA: Removida foto_perfil e adicionada SENHA (PIN)
         await db.query(`CREATE TABLE IF NOT EXISTS funcionarios (
             id INT AUTO_INCREMENT PRIMARY KEY,
             nome VARCHAR(255),
@@ -38,14 +37,14 @@ async function initDb() {
             FOREIGN KEY(funcionario_id) REFERENCES funcionarios(id) ON DELETE CASCADE
         )`);
 
-        console.log("✅ Tabelas MySQL prontas e persistentes (Sistema de PIN)!");
+        console.log("✅ Tabelas prontas (PIN e Exclusão em Cascata ativos)");
     } catch (err) {
         console.error("❌ Erro ao criar tabelas:", err);
     }
 }
 initDb();
 
-// --- CONFIGURAÇÕES DE SEGURANÇA ---
+// --- CONFIGURAÇÕES ---
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -67,19 +66,27 @@ app.get('/admin/pontos', async (req, res) => {
     }
 });
 
+// ROTA DE EXCLUSÃO CORRIGIDA (FOCO AQUI)
 app.delete('/admin/excluir-funcionario/:nome', async (req, res) => {
     const nome = decodeURIComponent(req.params.nome);
     try {
-        await db.query("DELETE FROM funcionarios WHERE nome = ?", [nome]);
-        res.json({ message: "Funcionário excluído com sucesso!" });
+        // Buscamos o ID primeiro para garantir a exclusão correta
+        const [func] = await db.query("SELECT id FROM funcionarios WHERE nome = ?", [nome]);
+        
+        if (func.length > 0) {
+            // Ao deletar pelo ID, o CASCADE apaga os pontos automaticamente
+            await db.query("DELETE FROM funcionarios WHERE id = ?", [func[0].id]);
+            res.json({ message: "Funcionário e histórico excluídos com sucesso!" });
+        } else {
+            res.status(404).json({ message: "Funcionário não encontrado." });
+        }
     } catch (err) {
-        res.status(500).json({ message: "Erro ao excluir." });
+        res.status(500).json({ message: "Erro ao excluir: " + err.message });
     }
 });
 
 app.post('/admin/cadastrar-funcionario', async (req, res) => {
     const { id, nome, senha, turnoAlmoco, diasTrabalho, id_biometria } = req.body;
-
     try {
         if (id) {
             const sqlUpdate = `
@@ -87,11 +94,11 @@ app.post('/admin/cadastrar-funcionario', async (req, res) => {
                 SET nome = ?, senha = ?, horario_almoco = ?, dias_trabalho = ?, id_biometria = ? 
                 WHERE id = ?`;
             await db.query(sqlUpdate, [nome, senha, turnoAlmoco, diasTrabalho, id_biometria, id]);
-            res.json({ message: "Dados atualizados com sucesso!" });
+            res.json({ message: "Dados atualizados!" });
         } else {
             const sqlInsert = "INSERT INTO funcionarios (nome, senha, horario_almoco, dias_trabalho, id_biometria) VALUES (?, ?, ?, ?, ?)";
             await db.query(sqlInsert, [nome, senha || '1234', turnoAlmoco, diasTrabalho, id_biometria]);
-            res.json({ message: "Funcionário cadastrado com sucesso!" });
+            res.json({ message: "Cadastrado com sucesso!" });
         }
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -107,23 +114,17 @@ app.get('/admin/equipe', async (req, res) => {
     }
 });
 
-// --- REGISTRO DE PONTO (VALIDAÇÃO POR PIN) ---
+// --- REGISTRO DE PONTO (SISTEMA DE PIN) ---
 app.post('/bater-ponto', async (req, res) => {
     const { funcionario, senha, tipo } = req.body;
-    
     try {
-        // Busca o funcionário e a senha dele
         const [rows] = await db.query("SELECT id, senha FROM funcionarios WHERE nome = ?", [funcionario]);
+        if (rows.length === 0) return res.status(404).json({ success: false, message: "Funcionário não encontrado." });
         
-        if (rows.length === 0) {
-            return res.status(404).json({ success: false, message: "Funcionário não encontrado." });
-        }
-
-        // Validação da Senha/PIN
         if (rows[0].senha !== senha) {
             return res.status(401).json({ success: false, message: "PIN incorreto!" });
         }
-        
+
         const funcId = rows[0].id;
         const agora = new Date();
         const dataHoje = agora.toISOString().split('T')[0]; 
@@ -137,9 +138,8 @@ app.post('/bater-ponto', async (req, res) => {
         await db.query("INSERT INTO registros_ponto (funcionario_id, data, hora, tipo) VALUES (?, ?, ?, ?)", 
             [funcId, dataHoje, horaAtual, tipoFinal]);
         
-        res.json({ success: true, message: "Ponto registrado com sucesso!" });
+        res.json({ success: true, message: "Ponto registrado!" });
     } catch (err) {
-        console.error(err);
         res.status(500).json({ success: false, message: "Erro ao salvar ponto." });
     }
 });
