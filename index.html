@@ -7,10 +7,467 @@
     <title>Sistema de Ponto - Sansil</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     
     <style>
         .hidden { display: none !important; }
+        .logo-container { text-align: center; margin-bottom: 20px; }
+        .btn-voltar { background: #eee; border: 1px solid #ccc; padding: 10px; width: 100%; margin-top: 20px; cursor: pointer; border-radius: 5px; }
+        
+        #alerta-limpeza {
+            background: #fff3cd; color: #856404; padding: 15px; border-radius: 5px;
+            margin-bottom: 20px; border: 1px solid #ffeeba; font-weight: bold; text-align: center;
+        }
+
+        .form-container {
+            display: flex; flex-direction: column; align-items: center; text-align: center;
+            background: #f9f9f9; padding: 20px; border-radius: 10px; margin-bottom: 30px;
+        }
+
+        .input-group { width: 100%; max-width: 300px; margin: 10px 0; text-align: left; }
+        
+        .dias-check {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+            margin-top: 10px; width: 100%;
+        }
+
+        .dias-check label { font-size: 14px; display: flex; align-items: center; gap: 5px; cursor: pointer; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { text-align: center !important; padding: 12px; border: 1px solid #ddd; }
+        th { background-color: #e30613; color: white; }
+
+        .btn-acao-edit { color: #ffc107; background: none; border: none; cursor: pointer; font-weight: bold; margin-right: 10px; text-transform: uppercase; }
+        .btn-acao-delete { color: #e30613; background: none; border: none; cursor: pointer; font-weight: bold; text-transform: uppercase; }
+        
+        .import-box {
+            background: #ffffff;
+            border: 2px dashed #e30613;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .pin-box {
+            margin: 20px auto;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        input[type="password"], input[type="text"], input[type="number"], select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        :root {
+        /* Cores extraídas do logo Sansil */
+        --primary-red: #E30613; 
+        --dark-bg: #1a1a1a;
+        --light-bg: #f4f4f4;
+        --white: #ffffff;
+    }
+
+    body {
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        background-color: var(--dark-bg); /* Fundo preto como o logo */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+        color: var(--white);
+    }
+
+    .container {
+        background: var(--white);
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        width: 90%;
+        max-width: 400px;
+        color: #333; /* Texto interno escuro para leitura */
+    }
+
+    /* Estilo do Título com as cores da Sansil */
+    h2 {
+        color: var(--primary-red);
+        text-transform: uppercase;
+        font-weight: 900;
+        border-bottom: 3px solid var(--primary-red);
+        padding-bottom: 10px;
+        margin-bottom: 25px;
+    }
+
+    /* Botão Principal em Vermelho Sansil */
+    .btn-primary {
+        background-color: var(--primary-red);
+        color: var(--white);
+        border: none;
+        padding: 15px;
+        border-radius: 8px;
+        font-size: 18px;
+        font-weight: bold;
+        width: 100%;
+        cursor: pointer;
+        transition: transform 0.2s, background 0.3s;
+        text-transform: uppercase;
+    }
+
+    .btn-primary:hover {
+        background-color: #b3050f;
+        transform: scale(1.02);
+    }
+
+    /* Botão da Dona (Borda Vermelha) */
+    .btn-outline {
+        background: transparent;
+        color: var(--primary-red);
+        border: 2px solid var(--primary-red);
+        padding: 12px;
+        border-radius: 8px;
+        font-weight: bold;
+        width: 100%;
+        margin-top: 15px;
+        cursor: pointer;
+    }
+
+    select, input {
+        width: 100%;
+        padding: 12px;
+        margin: 10px 0;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        font-size: 16px;
+        box-sizing: border-box;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+
+    th {
+        background-color: var(--primary-red);
+        color: white;
+        padding: 10px;
+    }
+
+    td {
+        padding: 10px;
+        border-bottom: 1px solid #ddd;
+        text-align: center;
+    }
+    /* Layout Geral do Dashboard */
+.dashboard-container {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    background: #f8f9fa;
+    position: fixed;
+    top: 0; left: 0;
+}
+
+/* Sidebar Estilizada */
+.sidebar {
+    width: 250px;
+    background: #1a1a1a; /* Preto da Sansil */
+    color: white;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 0;
+}
+
+.sidebar-header img {
+    width: 120px;
+    display: block;
+    margin: 0 auto 30px;
+}
+
+.nav-links {
+    list-style: none;
+    padding: 0;
+    flex-grow: 1;
+}
+
+.nav-links li {
+    padding: 15px 25px;
+    cursor: pointer;
+    transition: 0.3s;
+    border-left: 4px solid transparent;
+}
+
+.nav-links li:hover, .nav-links li.active {
+    background: #333;
+    border-left-color: #E30613; /* Vermelho Sansil */
+}
+
+.nav-pdf { color: #25D366; font-weight: bold; }
+
+.btn-logout {
+    background: transparent;
+    color: #ff4444;
+    border: none;
+    padding: 20px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+/* Área de Conteúdo */
+.admin-content {
+    flex-grow: 1;
+    padding: 30px;
+    overflow-y: auto;
+    color: #333;
+}
+
+.admin-content header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.table-container {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.btn-refresh {
+    background: #E30613;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.grid-nomes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.card-funcionario-admin {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    border-left: 5px solid #E30613; /* Vermelho Sansil */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s;
+}
+
+.card-funcionario-admin:hover {
+    transform: translateY(-3px);
+    background: #fff5f5;
+}
+
+.card-funcionario-admin strong {
+    font-size: 1.1rem;
+    color: #333;
+}
+
+.card-funcionario-admin span {
+    font-size: 0.8rem;
+    color: #777;
+    margin-top: 5px;
+}
+.form-container {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    max-width: 500px;
+}
+
+.input-group {
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+}
+
+.input-group label {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.input-group input {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+.atraso-texto {
+    color: #e30613;
+    font-weight: bold;
+    background: #ffcccc;
+    padding: 2px 5px;
+    border-radius: 4px;
+}
+/* Centraliza o formulário de cadastro */
+.form-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Centraliza horizontalmente */
+    text-align: center;
+}
+
+.input-group {
+    width: 100%;
+    max-width: 300px;
+    margin: 10px 0;
+    text-align: left; /* Mantém o texto do label à esquerda dentro do grupo centralizado */
+}
+
+/* Alinha os checkboxes verticalmente e centraliza o grupo */
+.dias-check {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin-top: 10px;
+    padding-left: 40%; /* Ajuste para centralizar visualmente a lista */
+}
+
+.dias-check label {
+    margin-bottom: 5px;
+    cursor: pointer;
+}
+
+/* Centraliza as tabelas */
+.table-container table {
+    margin: 0 auto;
+    width: 90%;
+}
+/* 1. FORCE A LARGURA REAL NO MOBILE */
+.container {
+    width: 95% !important; /* Força o ajuste mesmo no servidor */
+    max-width: 400px;
+    margin: 10px auto;
+    padding: 20px;
+    box-sizing: border-box; /* Impede que o botão saia do limite (Erro: image_40abeb) */
+}
+
+/* 2. RESOLVE O CONFLITO DA SIDEBAR NO SERVIDOR (Erro: image_40b085) */
+@media (max-width: 768px) {
+    .dashboard-container {
+        flex-direction: column !important; /* Garante que o menu fique no topo */
+    }
+
+    .sidebar {
+        width: 100% !important;
+        height: auto !important;
+        position: relative !important;
+    }
+
+    /* Ajusta os nomes dos funcionários que somem no servidor */
+    .card-funcionario-admin {
+        width: 100% !important;
+        box-sizing: border-box;
+    }
+}
+
+/* 3. ALINHAMENTO DOS DIAS (Erro: image_40a44a) */
+.dias-check {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr; /* Força duas colunas alinhadas */
+    gap: 15px;
+    width: 100%;
+    max-width: 280px;
+    margin: 15px auto;
+    padding: 0 !important; /* Remove paddings que o servidor possa injetar */
+}
+
+.dias-check label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+/* 4. TABELA QUE NÃO ESTICA A TELA (Erro: image_40b714) */
+.table-container {
+    width: 100% !important;
+    overflow-x: auto !important; /* Cria o scroll lateral no celular */
+    margin-top: 20px;
+}
+/* Botões de Ação na Tabela */
+.btn-edit {
+    background-color: #ffc107; /* Amarelo para editar */
+    color: #000;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-right: 5px;
+    text-transform: uppercase;
+    font-size: 11px;
+}
+
+.btn-delete {
+    background-color: transparent;
+    color: var(--primary-red);
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 11px;
+}
+
+/* Garante que a coluna de ações tenha espaço para os dois botões */
+td:last-child {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    min-width: 150px;
+}
+.btn-acao-edit {
+    color: #ffc107;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+    margin-right: 10px;
+}
+
+.btn-acao-delete {
+    color: #e30613;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+}
+.grid-nomes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.card-funcionario-admin {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    border-left: 5px solid #e30613;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    cursor: pointer;
+    transition: transform 0.2s;
+    display: flex;
+    flex-direction: column;
+}
+
+.card-funcionario-admin:hover {
+    transform: translateY(-5px);
+    background: #fff5f5;
+}
+.hidden { display: none !important; }
         .logo-container { text-align: center; margin-bottom: 20px; }
         .btn-voltar { background: #eee; border: 1px solid #ccc; padding: 10px; width: 100%; margin-top: 20px; cursor: pointer; border-radius: 5px; }
         
@@ -70,6 +527,182 @@
             text-align: center;
             margin-bottom: 10px;
         }
+        /* --- ESTILO DO NOVO PAINEL ADMIN (HAMBÚRGUER) --- */
+
+/* Barra superior fixa */
+.admin-top-bar {
+    background: #1a1a1a;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    color: white;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+
+.logo-area {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Botão de 3 risquinhos */
+.hamburger-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px;
+}
+
+.hamburger-btn span {
+    display: block;
+    width: 25px;
+    height: 3px;
+    background: white;
+    border-radius: 3px;
+    transition: 0.3s;
+}
+
+/* Menu Lateral (Escondido por padrão) */
+.nav-menu-mobile {
+    position: fixed;
+    top: 60px; /* Logo abaixo da barra preta */
+    right: -100%; /* Escondido fora da tela à direita */
+    width: 250px;
+    height: calc(100vh - 60px);
+    background: #252525;
+    transition: 0.4s ease-in-out;
+    box-shadow: -5px 0 15px rgba(0,0,0,0.5);
+    z-index: 999;
+}
+
+/* Quando o menu está ativo */
+.nav-menu-mobile.active {
+    right: 0;
+}
+
+.nav-menu-mobile ul {
+    list-style: none;
+    padding: 20px 0;
+}
+
+.nav-menu-mobile li {
+    padding: 18px 25px;
+    color: white;
+    border-bottom: 1px solid #333;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.nav-menu-mobile li:hover {
+    background: #333;
+}
+
+.sair-link {
+    color: #ff4444 !important;
+    font-weight: bold;
+}
+
+/* Ajuste no conteúdo principal para não ficar colado */
+.admin-content {
+    padding: 20px;
+}
+/* BOTÃO HAMBÚRGUER COM ANIMAÇÃO PARA "X" */
+.hamburger-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px;
+    position: relative;
+    z-index: 1001; /* Fica acima do menu */
+}
+
+.hamburger-btn span {
+    display: block;
+    width: 25px;
+    height: 3px;
+    background: white;
+    border-radius: 3px;
+    transition: all 0.3s ease-in-out;
+}
+
+/* Transformação para o X quando o menu está ativo */
+.hamburger-btn.open span:nth-child(1) {
+    transform: translateY(8px) rotate(45deg);
+}
+
+.hamburger-btn.open span:nth-child(2) {
+    opacity: 0;
+    transform: translateX(-20px);
+}
+
+.hamburger-btn.open span:nth-child(3) {
+    transform: translateY(-8px) rotate(-45deg);
+}
+.modal-foto {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.9);
+    z-index: 2000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background: white;
+    padding: 20px;
+    border-radius: 15px;
+    text-align: center;
+    width: 90%;
+    max-width: 450px;
+}
+
+.video-container-modal {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4/3;
+    background: #000;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 15px 0;
+}
+
+#video-modal {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Guia redondo para o rosto */
+.face-guide {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 200px;
+    height: 250px;
+    border: 3px dashed rgba(255,255,255,0.5);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.modal-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
     </style>
 </head>
 <body>
@@ -79,8 +712,7 @@
         <div class="logo-container">
             <img src="logosansil.png" alt="Sansil Padaria" style="width: 150px; margin-bottom: 10px;">
         </div>
-        <div id="status-modelos">Carregando sistema de biometria...</div>
-        <button class="btn-primary" onclick="irPara('tela-ponto')">👤 REGISTRAR PONTO (FOTO)</button>
+        <button class="btn-primary" onclick="irPara('tela-ponto')">👤 REGISTRAR PONTO (PIN)</button>
         <button class="btn-outline" onclick="checarAdmin()">🔑 ÁREA DA DONA (RESTRITO)</button>
     </div>
 
@@ -88,11 +720,17 @@
         <h2>🥖 Registro de Ponto</h2>
         <div class="input-group" style="margin: 0 auto;">
             <label>Selecione seu nome:</label>
-            <select id="select-func" style="width: 100%; padding: 10px;"></select>
+            <select id="select-func"></select>
         </div>
+        
+        <div class="pin-box">
+            <label>Digite seu PIN (4 dígitos):</label>
+            <input type="password" id="pin-ponto" maxlength="4" inputmode="numeric" placeholder="****" style="text-align: center; font-size: 24px; letter-spacing: 10px;">
+        </div>
+
         <div class="input-group" style="margin: 10px auto;">
             <label>O que vai fazer agora?</label>
-            <select id="tipo-ponto" style="width: 100%; padding: 10px;">
+            <select id="tipo-ponto">
                 <option value="Entrada (05:45)">Entrada (Início de Turno)</option>
                 <option value="Saída p/ Almoço">Saída p/ Almoço</option>
                 <option value="Retorno Almoço">Retorno Almoço</option>
@@ -101,11 +739,8 @@
                 <option value="Saída (Fim do Expediente)">Saída (Final do Dia)</option>
             </select>
         </div>
-        <div class="video-ponto">
-            <video id="video" width="320" height="240" autoplay style="object-fit: cover;"></video>
-            <canvas id="canvas" width="320" height="240" class="hidden"></canvas>
-        </div>
-        <button id="btn-bater-ponto" class="btn-primary" onclick="capturarEFitrar()" style="background-color: #28a745;">📸 BATER PONTO AGORA</button>
+
+        <button id="btn-bater-ponto" class="btn-primary" onclick="validarEPontuar()" style="background-color: #28a745;">✅ CONFIRMAR PONTO</button>
         <button class="btn-voltar" onclick="irPara('tela-perfil')">← Voltar</button>
     </div>
 
@@ -131,7 +766,6 @@
                 
                 <div class="import-box">
                     <h3>📥 Importar do Pendrive (Aparelho Biométrico)</h3>
-                    <p style="font-size: 12px; color: #666;">Selecione o arquivo extraído do aparelho (ex: AGL_001.TXT)</p>
                     <input type="file" id="arquivoBios" accept=".TXT,.dat" style="margin: 10px 0;">
                     <br>
                     <button class="btn-primary" onclick="importarArquivo()" style="background: #333; width: auto; padding: 10px 20px;">PROCESSAR ARQUIVO</button>
@@ -159,26 +793,28 @@
             <section id="aba-funcionarios" class="admin-section hidden">
                 <div class="form-container">
                     <h3 id="form-titulo">➕ Novo Funcionário</h3>
-                    <div style="margin-bottom: 15px;">
-                        <video id="video-cadastro" width="200" height="150" autoplay style="border: 2px solid #ccc; border-radius: 10px; background: #000;"></video>
-                        <canvas id="canvas-cadastro" width="200" height="150" class="hidden"></canvas>
-                        <br>
-                        <button class="btn-primary" onclick="capturarFotoCadastro()" style="padding: 5px 10px; font-size: 12px; margin-top: 5px;">📸 Tirar Foto Oficial</button>
-                        <input type="hidden" id="foto-perfil-base64">
-                    </div>
+                    
                     <input type="text" id="novo-nome" placeholder="Nome Completo" style="width: 100%; max-width: 300px; margin-bottom: 10px;">
+                    
+                    <div class="input-group">
+                        <label><strong>Senha PIN (4 dígitos):</strong></label>
+                        <input type="password" id="novo-pin" maxlength="4" placeholder="Ex: 1234">
+                    </div>
+
                     <div class="input-group">
                         <label><strong>ID no Aparelho (Biometria):</strong></label>
-                        <input type="number" id="id-biometria" placeholder="Ex: 1, 6, 10" style="width: 95%; padding: 8px;">
+                        <input type="number" id="id-biometria" placeholder="Ex: 1, 6, 10">
                     </div>
+
                     <div class="input-group">
                         <label><strong>Turno de Almoço:</strong></label>
-                        <select id="turno-almoco" style="width: 100%; padding: 8px;">
+                        <select id="turno-almoco">
                             <option value="11:00 às 12:00">11:00 às 12:00</option>
                             <option value="12:00 às 13:00">12:00 às 13:00</option>
                             <option value="Flexível">Flexível</option>
                         </select>
                     </div>
+
                     <div class="input-group">
                         <label><strong>Dias de Trabalho:</strong></label>
                         <div class="dias-check">
@@ -191,6 +827,7 @@
                             <label><input type="checkbox" class="dia-semana" value="Dom"> Dom</label>
                         </div>
                     </div>
+
                     <button class="btn-primary" onclick="cadastrarFuncionario()" id="btn-salvar-func" style="max-width: 300px; margin-top: 15px;">SALVAR</button>
                     <button class="btn-voltar hidden" id="btn-cancelar-edit" onclick="cancelarEdicao()">Cancelar Edição</button>
                 </div>
@@ -213,128 +850,49 @@ let todosOsPontos = [];
 let funcionarioSelecionado = ""; 
 let editandoModo = false;
 let idEdicao = null; 
-let streamPrincipal;
-let streamCadastro;
-let modelosCarregados = false;
-
-// 1. CARREGAR MODELOS AO ABRIR (FICA MUITO MAIS RÁPIDO)
-async function carregarModelos() {
-    try {
-        const MODEL_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
-        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-        modelosCarregados = true;
-        document.getElementById('status-modelos').innerText = "✅ Biometria Pronta";
-        document.getElementById('status-modelos').style.color = "green";
-    } catch (e) {
-        document.getElementById('status-modelos').innerText = "❌ Erro ao carregar biometria";
-    }
-}
 
 window.onload = () => { 
     atualizarSelectPonto(); 
-    carregarModelos(); 
 };
-
-// --- NAVEGAÇÃO E CÂMERAS ---
-async function iniciarCamera() {
-    try {
-        streamPrincipal = await navigator.mediaDevices.getUserMedia({ video: true });
-        document.getElementById('video').srcObject = streamPrincipal;
-    } catch (err) { alert("Erro ao acessar a câmera."); }
-}
-
-async function iniciarCameraCadastro() {
-    try {
-        streamCadastro = await navigator.mediaDevices.getUserMedia({ video: true });
-        document.getElementById('video-cadastro').srcObject = streamCadastro;
-    } catch (err) { console.log("Câmera de cadastro negada."); }
-}
-
-function pararTodasCameras() {
-    if (streamPrincipal) streamPrincipal.getTracks().forEach(t => t.stop());
-    if (streamCadastro) streamCadastro.getTracks().forEach(t => t.stop());
-}
 
 function irPara(idTela) {
     document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden'));
     document.getElementById(idTela).classList.remove('hidden');
-    pararTodasCameras();
-    if (idTela === 'tela-ponto') iniciarCamera();
 }
 
-// --- REGISTRO DE PONTO (FOTO) OTIMIZADO ---
-async function capturarEFitrar() {
+// --- REGISTRO DE PONTO (PIN) ---
+async function validarEPontuar() {
     const nome = document.getElementById('select-func').value;
+    const pin = document.getElementById('pin-ponto').value;
     const tipo = document.getElementById('tipo-ponto').value;
     const btn = document.getElementById('btn-bater-ponto');
     
     if (!nome) { alert("Selecione seu nome!"); return; }
-    if (!modelosCarregados) { alert("Aguarde o carregamento do sistema..."); return; }
+    if (pin.length < 4) { alert("Digite o PIN de 4 dígitos!"); return; }
 
     btn.disabled = true;
-    btn.innerText = "VALIDANDO ROSTO...";
-
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const context = canvas.getContext('2d');
-    context.drawImage(video, 0, 0, 320, 240);
-    const fotoCapturadaBase64 = canvas.toDataURL('image/png');
 
     try {
-        const resFunc = await fetch(`/admin/equipe`, { headers: { 'ngrok-skip-browser-warning': 'true' } });
-        const equipe = await resFunc.json();
-        const dadosFunc = equipe.find(f => f.nome === nome);
-
-        if (!dadosFunc || !dadosFunc.foto_perfil) {
-            alert("Erro: Funcionário sem foto oficial cadastrada.");
-            btn.disabled = false;
-            btn.innerText = "📸 BATER PONTO AGORA";
-            return;
-        }
-
-        // Validação Acelerada com TinyFace
-        const eIdentico = await validarIdentidadeAcelerada(video, dadosFunc.foto_perfil);
-
-        if (!eIdentico) {
-            alert("❌ NÃO RECONHECIDO! Tente se aproximar mais da luz e olhar para a câmera.");
-            btn.disabled = false;
-            btn.innerText = "📸 BATER PONTO AGORA";
-            return;
-        }
-
-        await fetch('/bater-ponto', {
+        const res = await fetch('/bater-ponto', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ funcionario: nome, tipo: tipo, foto: fotoCapturadaBase64 })
+            body: JSON.stringify({ funcionario: nome, senha: pin, tipo: tipo })
         });
         
-        alert("✅ IDENTIDADE CONFIRMADA! Ponto registrado.");
-        irPara('tela-perfil');
+        const data = await res.json();
 
+        if (data.success) {
+            alert("✅ Ponto registrado com sucesso!");
+            document.getElementById('pin-ponto').value = "";
+            irPara('tela-perfil');
+        } else {
+            alert("❌ " + data.message);
+        }
     } catch (e) { 
-        console.error(e);
-        alert("Erro técnico na validação."); 
+        alert("Erro ao conectar com o servidor."); 
     } finally {
         btn.disabled = false;
-        btn.innerText = "📸 BATER PONTO AGORA";
     }
-}
-
-async function validarIdentidadeAcelerada(videoEl, fotoReferencia) {
-    // 1. Detecta na câmera (usando o modelo Tiny que é mais rápido)
-    const detecAtual = await faceapi.detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-    if (!detecAtual) return false;
-
-    // 2. Detecta na foto de referência
-    const imgRef = await faceapi.fetchImage(fotoReferencia);
-    const detecRef = await faceapi.detectSingleFace(imgRef, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-    if (!detecRef) return false;
-
-    // 3. Compara
-    const distancia = faceapi.euclideanDistance(detecAtual.descriptor, detecRef.descriptor);
-    return distancia < 0.60; // Limite de precisão (menor é mais rigoroso)
 }
 
 // --- ADMINISTRAÇÃO ---
@@ -354,12 +912,8 @@ function mudarAbaAdmin(abaId) {
     const btnAba = document.getElementById('btn-' + abaId);
     if(btnAba) btnAba.classList.add('active');
 
-    pararTodasCameras();
     if(abaId === 'aba-relatorio') carregarRelatorio();
-    else if (abaId === 'aba-funcionarios') {
-        iniciarCameraCadastro();
-        listarEquipe();
-    }
+    else if (abaId === 'aba-funcionarios') listarEquipe();
 }
 
 // --- RELATÓRIOS ---
@@ -438,29 +992,22 @@ function voltarParaLista() {
 }
 
 // --- GESTÃO DE EQUIPE ---
-function capturarFotoCadastro() {
-    const canvas = document.getElementById('canvas-cadastro');
-    canvas.getContext('2d').drawImage(document.getElementById('video-cadastro'), 0, 0, 200, 150);
-    document.getElementById('foto-perfil-base64').value = canvas.toDataURL('image/jpeg', 0.8);
-    alert("Foto capturada!");
-}
-
 async function cadastrarFuncionario() {
     const nome = document.getElementById('novo-nome').value.trim();
+    const pin = document.getElementById('novo-pin').value;
     const idBio = document.getElementById('id-biometria').value;
     const turnoAlmoco = document.getElementById('turno-almoco').value;
-    const foto = document.getElementById('foto-perfil-base64').value;
     const dias = Array.from(document.querySelectorAll('.dia-semana:checked')).map(cb => cb.value).join(', ');
 
-    if (!nome) return alert("Digite o nome!");
+    if (!nome || !pin) return alert("Nome e PIN são obrigatórios!");
 
     const payload = { 
         id: idEdicao,
         nome, 
+        senha: pin,
         id_biometria: idBio, 
         turnoAlmoco, 
         diasTrabalho: dias, 
-        foto_perfil: foto ? foto : null,
         modoEdicao: editandoModo
     };
 
@@ -495,18 +1042,19 @@ async function listarEquipe() {
             <td>${f.horario_almoco}</td>
             <td>${f.dias_trabalho}</td>
             <td>
-                <button class="btn-acao-edit" onclick="prepararEdicao(${f.id}, '${f.nome}', '${f.horario_almoco}', '${f.dias_trabalho}', '${f.id_biometria}')">EDITAR</button>
+                <button class="btn-acao-edit" onclick="prepararEdicao(${f.id}, '${f.nome}', '${f.horario_almoco}', '${f.dias_trabalho}', '${f.id_biometria}', '${f.senha}')">EDITAR</button>
                 <button class="btn-acao-delete" onclick="removerFuncionario('${f.nome}')">EXCLUIR</button>
             </td>
         </tr>`;
     });
 }
 
-function prepararEdicao(id, nome, almoco, dias, idBio) {
+function prepararEdicao(id, nome, almoco, dias, idBio, senha) {
     editandoModo = true;
     idEdicao = id;
     document.getElementById('form-titulo').innerText = "📝 Editar Funcionário";
     document.getElementById('novo-nome').value = nome;
+    document.getElementById('novo-pin').value = senha || '';
     document.getElementById('id-biometria').value = (idBio === 'null' || !idBio) ? '' : idBio;
     document.getElementById('turno-almoco').value = almoco;
     document.getElementById('btn-cancelar-edit').classList.remove('hidden');
@@ -519,8 +1067,8 @@ function cancelarEdicao() {
     idEdicao = null;
     document.getElementById('form-titulo').innerText = "➕ Novo Funcionário";
     document.getElementById('novo-nome').value = "";
+    document.getElementById('novo-pin').value = "";
     document.getElementById('id-biometria').value = "";
-    document.getElementById('foto-perfil-base64').value = "";
     document.getElementById('btn-cancelar-edit').classList.add('hidden');
     document.querySelectorAll('.dia-semana').forEach(cb => cb.checked = false);
 }
