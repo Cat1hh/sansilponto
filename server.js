@@ -2,6 +2,10 @@ const express = require('express');
 const mysql = require('mysql2/promise');
 const cors = require('cors');
 const path = require('path');
+
+// 1. FORÇA O FUSO HORÁRIO NO NODE.JS (Urgente para Railway)
+process.env.TZ = "America/Sao_Paulo";
+
 const app = express();
 
 // --- CONEXÃO COM O BANCO DE DADOS ---
@@ -13,7 +17,9 @@ const db = mysql.createPool({
     port: process.env.MYSQLPORT || 3306,
     waitForConnections: true,
     connectionLimit: 10,
-    queueLimit: 0
+    queueLimit: 0,
+    // AJUSTE: Força o fuso horário de Brasília na conexão do MySQL
+    timezone: '-03:00' 
 });
 
 // 1. Inicialização das tabelas com PIN e CASCADE
@@ -37,7 +43,7 @@ async function initDb() {
             FOREIGN KEY(funcionario_id) REFERENCES funcionarios(id) ON DELETE CASCADE
         )`);
 
-        console.log("✅ Tabelas prontas (PIN e Exclusão em Cascata ativos)");
+        console.log("✅ Tabelas prontas (Fuso Horário Brasília configurado)");
     } catch (err) {
         console.error("❌ Erro ao criar tabelas:", err);
     }
@@ -66,28 +72,20 @@ app.get('/admin/pontos', async (req, res) => {
     }
 });
 
-// ROTA DE EXCLUSÃO BLINDADA (Apaga registros antes para evitar travas no MySQL)
 app.delete('/admin/excluir-funcionario/:nome', async (req, res) => {
     const nome = decodeURIComponent(req.params.nome);
     try {
-        // 1. Localiza o ID do funcionário pelo nome
         const [func] = await db.query("SELECT id FROM funcionarios WHERE nome = ?", [nome]);
-        
         if (func.length > 0) {
             const funcionarioId = func[0].id;
-
-            // 2. Limpeza Manual: Apaga os pontos primeiro para não dar erro de chave estrangeira
+            // Limpeza manual para garantir que não trave
             await db.query("DELETE FROM registros_ponto WHERE funcionario_id = ?", [funcionarioId]);
-
-            // 3. Agora apaga o funcionário
             await db.query("DELETE FROM funcionarios WHERE id = ?", [funcionarioId]);
-
-            res.json({ success: true, message: "Funcionário e histórico removidos com sucesso!" });
+            res.json({ success: true, message: "Funcionário e histórico removidos!" });
         } else {
             res.status(404).json({ success: false, message: "Funcionário não encontrado." });
         }
     } catch (err) {
-        console.error("Erro na exclusão:", err);
         res.status(500).json({ success: false, message: "Erro ao excluir: " + err.message });
     }
 });
@@ -121,7 +119,7 @@ app.get('/admin/equipe', async (req, res) => {
     }
 });
 
-// --- REGISTRO DE PONTO (SISTEMA DE PIN) ---
+// --- REGISTRO DE PONTO (SISTEMA COM HORA CORRIGIDA) ---
 app.post('/bater-ponto', async (req, res) => {
     const { funcionario, senha, tipo } = req.body;
     try {
@@ -133,20 +131,34 @@ app.post('/bater-ponto', async (req, res) => {
         }
 
         const funcId = rows[0].id;
+        
+        // AJUSTE DE HORA: Capturando exatamente o momento em São Paulo
         const agora = new Date();
-        const dataHoje = agora.toISOString().split('T')[0]; 
-        const horaAtual = agora.toLocaleTimeString('pt-BR', { hour12: false });
+        const dataHoje = agora.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }); 
+        const horaAtual = agora.toLocaleTimeString('pt-BR', { 
+            hour12: false, 
+            timeZone: 'America/Sao_Paulo' 
+        });
 
+        // Lógica de atraso baseada na hora local de SP
         let tipoFinal = tipo;
-        if (tipo.includes("Entrada") && (agora.getHours() > 5 || (agora.getHours() === 5 && agora.getMinutes() > 55))) {
-            tipoFinal = `${tipo} (⚠️ ATRASO)`;
+        const partesHora = horaAtual.split(':');
+        const horaH = parseInt(partesHora[0]);
+        const minutoM = parseInt(partesHora[1]);
+
+        if (tipo.includes("Entrada")) {
+            // Se for após 05:55 (Atraso)
+            if (horaH > 5 || (horaH === 5 && minutoM > 55)) {
+                tipoFinal = `${tipo} (⚠️ ATRASO)`;
+            }
         }
 
         await db.query("INSERT INTO registros_ponto (funcionario_id, data, hora, tipo) VALUES (?, ?, ?, ?)", 
             [funcId, dataHoje, horaAtual, tipoFinal]);
         
-        res.json({ success: true, message: "Ponto registrado!" });
+        res.json({ success: true, message: `Ponto registrado às ${horaAtual}!` });
     } catch (err) {
+        console.error(err);
         res.status(500).json({ success: false, message: "Erro ao salvar ponto." });
     }
 });
