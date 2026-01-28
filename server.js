@@ -20,7 +20,6 @@ const db = mysql.createPool({
 // Inicialização das tabelas
 async function initDb() {
     try {
-        // Tabela de funcionários
         await db.query(`CREATE TABLE IF NOT EXISTS funcionarios (
             id INT AUTO_INCREMENT PRIMARY KEY,
             nome VARCHAR(255) NOT NULL,
@@ -30,7 +29,6 @@ async function initDb() {
             id_biometria VARCHAR(255)
         )`);
 
-        // Tabela de registros de ponto
         await db.query(`CREATE TABLE IF NOT EXISTS registros_ponto (
             id INT AUTO_INCREMENT PRIMARY KEY,
             funcionario_id INT,
@@ -63,30 +61,34 @@ app.get('/admin/equipe', async (req, res) => {
     }
 });
 
-// Cadastrar ou Editar Funcionário
+// Cadastrar ou Editar Funcionário (AJUSTADO)
 app.post('/admin/cadastrar-funcionario', async (req, res) => {
+    // Note que aqui as variáveis devem bater com o que você envia no fetch do HTML
     const { id, nome, senha, turnoAlmoco, diasTrabalho, id_biometria } = req.body;
+    
     try {
-        if (id) {
+        if (id && id !== null) {
+            // SE EXISTIR ID, ELE ATUALIZA (EDITAR)
             const sqlUpdate = `UPDATE funcionarios SET nome=?, senha=?, horario_almoco=?, dias_trabalho=?, id_biometria=? WHERE id=?`;
             await db.query(sqlUpdate, [nome, senha, turnoAlmoco, diasTrabalho, id_biometria, id]);
-            res.json({ message: "Atualizado com sucesso!" });
+            res.json({ message: "Funcionário atualizado com sucesso!" });
         } else {
+            // SE NÃO EXISTIR ID, ELE CRIA UM NOVO
             const sqlInsert = "INSERT INTO funcionarios (nome, senha, horario_almoco, dias_trabalho, id_biometria) VALUES (?, ?, ?, ?, ?)";
             await db.query(sqlInsert, [nome, senha || '1234', turnoAlmoco, diasTrabalho, id_biometria]);
-            res.json({ message: "Cadastrado com sucesso!" });
+            res.json({ message: "Funcionário cadastrado com sucesso!" });
         }
     } catch (err) {
-        res.status(500).json({ message: "Erro ao salvar funcionário." });
+        console.error(err);
+        res.status(500).json({ message: "Erro ao salvar funcionário no banco." });
     }
 });
 
-// --- REGISTRO DE PONTO (Com validação de Senha) ---
+// --- REGISTRO DE PONTO ---
 app.post('/bater-ponto', async (req, res) => {
     const { funcionario, senha, tipo } = req.body;
     
     try {
-        // Busca o funcionário e valida a senha
         const [rows] = await db.query("SELECT id, senha FROM funcionarios WHERE nome = ?", [funcionario]);
         
         if (rows.length === 0) {
@@ -98,15 +100,12 @@ app.post('/bater-ponto', async (req, res) => {
         }
         
         const funcId = rows[0].id;
-        
-        // Data e Hora (Ajuste para fuso de Brasília)
         const agora = new Date();
         const dataBrasilia = new Date(agora.getTime() - (3 * 60 * 60 * 1000));
         const dataHoje = dataBrasilia.toISOString().split('T')[0];
         const horaAtual = agora.toLocaleTimeString('pt-BR', { hour12: false, timeZone: 'America/Sao_Paulo' });
 
         let tipoFinal = tipo;
-        // Lógica de atraso (exemplo 05:55)
         const [h, m] = horaAtual.split(':').map(Number);
         if (tipo.includes("Entrada") && (h > 5 || (h === 5 && m > 55))) {
             tipoFinal += " (⚠️ ATRASO)";
