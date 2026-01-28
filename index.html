@@ -1031,14 +1031,17 @@ async function cadastrarFuncionario() {
 }
 
 // --- TRECHO CORRIGIDO NO LISTAR EQUIPE ---
+// Localize essa parte no seu script.js e garanta que está assim:
 async function listarEquipe() {
     const res = await fetch('/admin/equipe', { headers: { 'ngrok-skip-browser-warning': 'true' } });
     const equipe = await res.json();
     const corpo = document.getElementById('tabela-equipe-corpo');
     corpo.innerHTML = "";
+    
     equipe.forEach(f => {
-        // Importante: Passamos f.senha aqui para que o prepararEdicao receba o PIN
-        corpo.innerHTML += `<tr>
+        // Use crases (backticks) para facilitar a leitura do HTML
+        corpo.innerHTML += `
+        <tr>
             <td>${f.nome}</td>
             <td>${f.id_biometria || '-'}</td>
             <td>${f.horario_almoco}</td>
