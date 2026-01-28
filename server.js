@@ -4,7 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const app = express();
 
-// --- CONEXÃO COM O BANCO DE DADOS (MySQL Railway) ---
+// --- CONEXÃO COM O BANCO DE DADOS (Railway) ---
 const db = mysql.createPool({
     host: process.env.MYSQLHOST,
     user: process.env.MYSQLUSER || 'root',
@@ -14,20 +14,22 @@ const db = mysql.createPool({
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
-    timezone: '-03:00' // Força o fuso horário de Brasília no MySQL
+    timezone: '-03:00' // Ajusta para o fuso horário de Brasília
 });
 
 // Inicialização das tabelas
 async function initDb() {
     try {
+        // Tabela de funcionários com a nova coluna 'senha'
         await db.query(`CREATE TABLE IF NOT EXISTS funcionarios (
             id INT AUTO_INCREMENT PRIMARY KEY,
             nome VARCHAR(255) NOT NULL,
+            senha VARCHAR(10) DEFAULT '1234', 
             horario_almoco VARCHAR(50),
             dias_trabalho VARCHAR(255),
-            foto_perfil LONGTEXT,
             id_biometria VARCHAR(255)
         )`);
+
         await db.query(`CREATE TABLE IF NOT EXISTS registros_ponto (
             id INT AUTO_INCREMENT PRIMARY KEY,
             funcionario_id INT,
@@ -36,77 +38,93 @@ async function initDb() {
             tipo VARCHAR(100),
             FOREIGN KEY(funcionario_id) REFERENCES funcionarios(id) ON DELETE CASCADE
         )`);
-        await db.query(`CREATE TABLE IF NOT EXISTS fotos_registros (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            registro_id INT,
-            foto_batida LONGTEXT,
-            FOREIGN KEY(registro_id) REFERENCES registros_ponto(id) ON DELETE CASCADE
-        )`);
-        console.log("✅ Tabelas MySQL prontas!");
+        
+        console.log("✅ Banco de Dados sincronizado (Sistema de Senha)");
     } catch (err) {
-        console.error("❌ Erro ao criar tabelas:", err);
+        console.error("❌ Erro ao iniciar banco:", err);
     }
 }
 initDb();
 
-// --- CONFIGURAÇÕES ---
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(__dirname)); 
 
 // --- ROTAS ADMINISTRATIVAS ---
 
-// Listar todos os pontos
-app.get('/admin/pontos', async (req, res) => {
-    try {
-        const sql = `
-            SELECT f.nome as funcionario, r.data, r.hora, r.tipo 
-            FROM registros_ponto r 
-            JOIN funcionarios f ON r.funcionario_id = f.id 
-            ORDER BY r.data DESC, r.hora DESC`;
-        const [rows] = await db.query(sql);
-        res.json({ pontos: rows, diasRestantes: 30 }); // Exemplo de contagem de dias
-    } catch (err) {
-        res.status(500).json({ message: err.message });
-    }
-});
-
-// Cadastrar ou Editar Funcionário
-app.post('/admin/cadastrar-funcionario', async (req, res) => {
-    const { id, nome, turnoAlmoco, diasTrabalho, foto_perfil, id_biometria } = req.body;
-    
-    try {
-        if (id) {
-            // Se houver foto nova, atualiza. Se não, mantém a antiga.
-            const sqlUpdate = `
-                UPDATE funcionarios 
-                SET nome = ?, horario_almoco = ?, dias_trabalho = ?, 
-                    foto_perfil = COALESCE(?, foto_perfil), id_biometria = ? 
-                WHERE id = ?`;
-            await db.query(sqlUpdate, [nome, turnoAlmoco, diasTrabalho, foto_perfil || null, id_biometria, id]);
-            res.json({ message: "Funcionário atualizado!" });
-        } else {
-            const sqlInsert = "INSERT INTO funcionarios (nome, horario_almoco, dias_trabalho, foto_perfil, id_biometria) VALUES (?, ?, ?, ?, ?)";
-            await db.query(sqlInsert, [nome, turnoAlmoco, diasTrabalho, foto_perfil, id_biometria]);
-            res.json({ message: "Cadastrado com sucesso!" });
-        }
-    } catch (err) {
-        res.status(500).json({ message: "Erro no banco de dados." });
-    }
-});
-
-// Listar Equipe
+// Listar Equipe (agora retorna a senha para validação no front)
 app.get('/admin/equipe', async (req, res) => {
     try {
-        const [rows] = await db.query("SELECT * FROM funcionarios ORDER BY nome ASC");
+        const [rows] = await db.query("SELECT id, nome, senha, horario_almoco, dias_trabalho, id_biometria FROM funcionarios ORDER BY nome ASC");
         res.json(rows);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 });
 
-// Excluir Funcionário
+// Cadastrar ou Editar Funcionário (incluindo senha)
+app.post('/admin/cadastrar-funcionario', async (req, res) => {
+    const { id, nome, senha, turnoAlmoco, diasTrabalho, id_biometria } = req.body;
+    try {
+        if (id) {
+            const sqlUpdate = `UPDATE funcionarios SET nome=?, senha=?, horario_almoco=?, dias_trabalho=?, id_biometria=? WHERE id=?`;
+            await db.query(sqlUpdate, [nome, senha, turnoAlmoco, diasTrabalho, id_biometria, id]);
+            res.json({ message: "Atualizado com sucesso!" });
+        } else {
+            const sqlInsert = "INSERT INTO funcionarios (nome, senha, horario_almoco, dias_trabalho, id_biometria) VALUES (?, ?, ?, ?, ?)";
+            await db.query(sqlInsert, [nome, senha || '1234', turnoAlmoco, diasTrabalho, id_biometria]);
+            res.json({ message: "Cadastrado com sucesso!" });
+        }
+    } catch (err) {
+        res.status(500).json({ message: "Erro ao salvar funcionário." });
+    }
+});
+
+// --- REGISTRO DE PONTO ---
+app.post('/bater-ponto', async (req, res) => {
+    const { funcionario, tipo } = req.body;
+    
+    try {
+        const [rows] = await db.query("SELECT id FROM funcionarios WHERE nome = ?", [funcionario]);
+        if (rows.length === 0) return res.status(404).json({ message: "Funcionário não encontrado." });
+        
+        const funcId = rows[0].id;
+        
+        // Data e Hora ajustadas para o fuso do Brasil
+        const agora = new Date();
+        const dataHoje = new Date(agora.getTime() - (3 * 60 * 60 * 1000)).toISOString().split('T')[0];
+        const horaAtual = agora.toLocaleTimeString('pt-BR', { hour12: false });
+
+        let tipoFinal = tipo;
+        // Lógica de atraso (exemplo 05:55)
+        const [h, m] = horaAtual.split(':').map(Number);
+        if (tipo.includes("Entrada") && (h > 5 || (h === 5 && m > 55))) {
+            tipoFinal += " (⚠️ ATRASO)";
+        }
+
+        await db.query("INSERT INTO registros_ponto (funcionario_id, data, hora, tipo) VALUES (?, ?, ?, ?)", 
+            [funcId, dataHoje, horaAtual, tipoFinal]);
+        
+        res.json({ message: "Ponto registrado!", hora: horaAtual });
+    } catch (err) {
+        res.status(500).json({ message: "Erro ao processar ponto." });
+    }
+});
+
+app.get('/admin/pontos', async (req, res) => {
+    try {
+        const sql = `
+            SELECT f.nome as funcionario, r.data, r.hora, r.tipo 
+            FROM registros_ponto r 
+            JOIN funcionarios f ON r.funcionario_id = f.id 
+            ORDER BY r.data DESC, r.hora DESC LIMIT 500`;
+        const [rows] = await db.query(sql);
+        res.json({ pontos: rows });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 app.delete('/admin/excluir-funcionario/:nome', async (req, res) => {
     const nome = decodeURIComponent(req.params.nome);
     try {
@@ -114,47 +132,6 @@ app.delete('/admin/excluir-funcionario/:nome', async (req, res) => {
         res.json({ message: "Excluído!" });
     } catch (err) {
         res.status(500).json({ message: "Erro ao excluir." });
-    }
-});
-
-// --- REGISTRO DE PONTO (USADO PELO FRONT-END) ---
-app.post('/bater-ponto', async (req, res) => {
-    const { funcionario, tipo, foto } = req.body;
-    
-    try {
-        const [rows] = await db.query("SELECT id FROM funcionarios WHERE nome = ?", [funcionario]);
-        if (rows.length === 0) return res.status(404).json({ message: "Funcionário não existe." });
-        
-        const funcId = rows[0].id;
-
-        // Garantir Data e Hora no fuso de Brasília (GMT-3)
-        const agora = new Date();
-        const dataBrasilia = new Date(agora.getTime() - (3 * 60 * 60 * 1000));
-        const dataHoje = dataBrasilia.toISOString().split('T')[0];
-        const horaAtual = agora.toLocaleTimeString('pt-BR', { hour12: false });
-
-        let tipoFinal = tipo;
-        // Lógica de atraso (Exemplo: se for entrada e passar das 05:55)
-        if (tipo.toLowerCase().includes("entrada")) {
-            const [horas, minutos] = horaAtual.split(':').map(Number);
-            if (horas > 5 || (horas === 5 && minutos > 55)) {
-                tipoFinal += " (⚠️ ATRASO)";
-            }
-        }
-
-        const [result] = await db.query(
-            "INSERT INTO registros_ponto (funcionario_id, data, hora, tipo) VALUES (?, ?, ?, ?)", 
-            [funcId, dataHoje, horaAtual, tipoFinal]
-        );
-        
-        if (foto) {
-            await db.query("INSERT INTO fotos_registros (registro_id, foto_batida) VALUES (?, ?)", [result.insertId, foto]);
-        }
-
-        res.json({ message: "Ponto batido!", hora: horaAtual });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Erro ao salvar no servidor." });
     }
 });
 
