@@ -14,21 +14,28 @@ const db = mysql.createPool({
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
-    timezone: '-03:00' // Ajusta para o fuso horário de Brasília
+    timezone: '-03:00'
 });
 
-// Inicialização das tabelas
+// Inicialização das tabelas com atualização forçada
 async function initDb() {
     try {
-        // Tabela de funcionários com a nova coluna 'senha'
+        // Cria a tabela base se não existir
         await db.query(`CREATE TABLE IF NOT EXISTS funcionarios (
             id INT AUTO_INCREMENT PRIMARY KEY,
             nome VARCHAR(255) NOT NULL,
-            senha VARCHAR(10) DEFAULT '1234', 
             horario_almoco VARCHAR(50),
             dias_trabalho VARCHAR(255),
             id_biometria VARCHAR(255)
         )`);
+
+        // CORREÇÃO: Força a inclusão da coluna 'senha' caso ela não exista na tabela antiga
+        try {
+            await db.query(`ALTER TABLE funcionarios ADD COLUMN senha VARCHAR(10) DEFAULT '1234'`);
+            console.log("✅ Coluna 'senha' adicionada/verificada.");
+        } catch (e) {
+            // Se cair aqui, a coluna já existe. Tudo certo.
+        }
 
         await db.query(`CREATE TABLE IF NOT EXISTS registros_ponto (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -39,7 +46,7 @@ async function initDb() {
             FOREIGN KEY(funcionario_id) REFERENCES funcionarios(id) ON DELETE CASCADE
         )`);
         
-        console.log("✅ Banco de Dados sincronizado (Sistema de Senha)");
+        console.log("✅ Banco de Dados sincronizado e atualizado!");
     } catch (err) {
         console.error("❌ Erro ao iniciar banco:", err);
     }
@@ -52,7 +59,6 @@ app.use(express.static(__dirname));
 
 // --- ROTAS ADMINISTRATIVAS ---
 
-// Listar Equipe (agora retorna a senha para validação no front)
 app.get('/admin/equipe', async (req, res) => {
     try {
         const [rows] = await db.query("SELECT id, nome, senha, horario_almoco, dias_trabalho, id_biometria FROM funcionarios ORDER BY nome ASC");
@@ -62,7 +68,6 @@ app.get('/admin/equipe', async (req, res) => {
     }
 });
 
-// Cadastrar ou Editar Funcionário (incluindo senha)
 app.post('/admin/cadastrar-funcionario', async (req, res) => {
     const { id, nome, senha, turnoAlmoco, diasTrabalho, id_biometria } = req.body;
     try {
@@ -76,6 +81,7 @@ app.post('/admin/cadastrar-funcionario', async (req, res) => {
             res.json({ message: "Cadastrado com sucesso!" });
         }
     } catch (err) {
+        console.error(err);
         res.status(500).json({ message: "Erro ao salvar funcionário." });
     }
 });
@@ -83,20 +89,16 @@ app.post('/admin/cadastrar-funcionario', async (req, res) => {
 // --- REGISTRO DE PONTO ---
 app.post('/bater-ponto', async (req, res) => {
     const { funcionario, tipo } = req.body;
-    
     try {
         const [rows] = await db.query("SELECT id FROM funcionarios WHERE nome = ?", [funcionario]);
         if (rows.length === 0) return res.status(404).json({ message: "Funcionário não encontrado." });
         
         const funcId = rows[0].id;
-        
-        // Data e Hora ajustadas para o fuso do Brasil
         const agora = new Date();
         const dataHoje = new Date(agora.getTime() - (3 * 60 * 60 * 1000)).toISOString().split('T')[0];
         const horaAtual = agora.toLocaleTimeString('pt-BR', { hour12: false });
 
         let tipoFinal = tipo;
-        // Lógica de atraso (exemplo 05:55)
         const [h, m] = horaAtual.split(':').map(Number);
         if (tipo.includes("Entrada") && (h > 5 || (h === 5 && m > 55))) {
             tipoFinal += " (⚠️ ATRASO)";
