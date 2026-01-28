@@ -1030,12 +1030,14 @@ async function cadastrarFuncionario() {
     } catch (e) { alert("Erro ao conectar com o servidor."); }
 }
 
+// --- TRECHO CORRIGIDO NO LISTAR EQUIPE ---
 async function listarEquipe() {
     const res = await fetch('/admin/equipe', { headers: { 'ngrok-skip-browser-warning': 'true' } });
     const equipe = await res.json();
     const corpo = document.getElementById('tabela-equipe-corpo');
     corpo.innerHTML = "";
     equipe.forEach(f => {
+        // Importante: Passamos f.senha aqui para que o prepararEdicao receba o PIN
         corpo.innerHTML += `<tr>
             <td>${f.nome}</td>
             <td>${f.id_biometria || '-'}</td>
