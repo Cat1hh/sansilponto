@@ -66,22 +66,29 @@ app.get('/admin/pontos', async (req, res) => {
     }
 });
 
-// ROTA DE EXCLUSÃO CORRIGIDA (FOCO AQUI)
+// ROTA DE EXCLUSÃO BLINDADA (Apaga registros antes para evitar travas no MySQL)
 app.delete('/admin/excluir-funcionario/:nome', async (req, res) => {
     const nome = decodeURIComponent(req.params.nome);
     try {
-        // Buscamos o ID primeiro para garantir a exclusão correta
+        // 1. Localiza o ID do funcionário pelo nome
         const [func] = await db.query("SELECT id FROM funcionarios WHERE nome = ?", [nome]);
         
         if (func.length > 0) {
-            // Ao deletar pelo ID, o CASCADE apaga os pontos automaticamente
-            await db.query("DELETE FROM funcionarios WHERE id = ?", [func[0].id]);
-            res.json({ message: "Funcionário e histórico excluídos com sucesso!" });
+            const funcionarioId = func[0].id;
+
+            // 2. Limpeza Manual: Apaga os pontos primeiro para não dar erro de chave estrangeira
+            await db.query("DELETE FROM registros_ponto WHERE funcionario_id = ?", [funcionarioId]);
+
+            // 3. Agora apaga o funcionário
+            await db.query("DELETE FROM funcionarios WHERE id = ?", [funcionarioId]);
+
+            res.json({ success: true, message: "Funcionário e histórico removidos com sucesso!" });
         } else {
-            res.status(404).json({ message: "Funcionário não encontrado." });
+            res.status(404).json({ success: false, message: "Funcionário não encontrado." });
         }
     } catch (err) {
-        res.status(500).json({ message: "Erro ao excluir: " + err.message });
+        console.error("Erro na exclusão:", err);
+        res.status(500).json({ success: false, message: "Erro ao excluir: " + err.message });
     }
 });
 
